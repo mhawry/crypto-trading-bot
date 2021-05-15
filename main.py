@@ -1,8 +1,10 @@
 import logging
-from google.cloud import secretmanager, language_v1
+from google.cloud import secretmanager
+from nltk.sentiment import SentimentIntensityAnalyzer
 from classes.TwitterStream import TwitterStream
-from classes.TextSentiment import TextSentiment
 from classes.Telegram import Telegram
+# from classes.Binance import Binance
+from binance.client import Client
 
 GOOGLE_PROJECT_ID = 'winter-berm-302500'  # Google project id for Winter Berm
 ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
@@ -10,8 +12,25 @@ ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
 # secret names from Google Cloud - change them here if they are changed in GCP
 TELEGRAM_CHAT_ID_SECRET_KEY = 'telegram-chat-id'
 TELEGRAM_TOKEN_SECRET_KEY = 'telegram-token'
-TEXT_SENTIMENT_API_KEY_SECRET_KEY = 'text-sentiment-api-key'
 TWITTER_BEARER_TOKEN_SECRET_KEY = 'twitter-bearer-token'
+
+# compound threshold that will trigger a trade
+SENTIMENT_COMPOUND_THRESHOLD = 0.5
+
+DOGE_SYMBOL = 'DOGEUSDT'
+LEVERAGE = 20  # using 20x leverage which will give us a max position size of 25,000 USDT
+
+# BINANCE KEYS FOR PROD - BE CAREFUL!!!
+BINANCE_API_KEY = 'lfqRViovtvFFdLgyMpyDsAURCD1qY9Az2X4659uh6CmMHX67D8bM037fi4m7DJF1'
+BINANCE_API_SECRET = 'zSjZhQmdk7h8ogQvZDCnMzPh1kPIdFGz4COe8IAa9tR5lrFs1nh89QpeDCgGo7tM'
+
+# BINANCE KEYS MAIN TESTNET - NO FUTURES
+BINANCE_TESTNET_API_KEY = '7xizBlEccM7JTcAIREeF1WOnajHIHfrg0jHWvPTqW2JE5dMAQWH7fWSIQ55zdN3q'
+BINANCE_TESTNET_API_SECRET = 'iMK0YAJdocdoG47ClkrVm3iIGrRocQdRRlTwYNCk8lGW7VOBCcupuOaKd9YI0zJ8'
+
+# BINANCE KEYS FOR TESTNET WITH FUTURES
+BINANCE_TESTNET_FUTURES_API_KEY = '3b4697e7e702c2e3b19f47b96d3903ead2b4874d4737af86261d4ac1d47cec48'
+BINANCE_TESTNET_FUTURES_API_SECRET = 'd0bc528b73c37eb5b5972302ac78478606a487d4b5cbf9222a34317c331b5181'
 
 
 def access_google_secret(project_id: str, secret_id: str) -> str:
@@ -33,85 +52,27 @@ def access_google_secret(project_id: str, secret_id: str) -> str:
     return secret
 
 
-def test_sentiment():
-    # Instantiates a client
-    client = language_v1.LanguageServiceClient()
-
-    # The text to analyze
-    text = u"dogecoin is going up!!!!"
-    document = language_v1.Document(content=text, type_=language_v1.Document.Type.PLAIN_TEXT)
-
-    # Detects the sentiment of the text
-    sentiment = client.analyze_sentiment(request={'document': document}).document_sentiment
-
-    print("Text: {}".format(text))
-    print("Sentiment: {}, {}".format(sentiment.score, sentiment.magnitude))
-
-
-def sample_analyze_entity_sentiment(text_content):
-    """
-    Analyzing Entity Sentiment in a String
-
-    Args:
-      text_content The text content to analyze
-    """
-
-    client = language_v1.LanguageServiceClient()
-
-    # Available types: PLAIN_TEXT, HTML
-    type_ = language_v1.Document.Type.PLAIN_TEXT
-
-    # Optional. If not specified, the language is automatically detected.
-    # For list of supported languages:
-    # https://cloud.google.com/natural-language/docs/languages
-    language = "en"
-    document = {"content": text_content, "type_": type_, "language": language}
-
-    # Available values: NONE, UTF8, UTF16, UTF32
-    encoding_type = language_v1.EncodingType.UTF8
-
-    response = client.analyze_entity_sentiment(request = {'document': document, 'encoding_type': encoding_type})
-    # Loop through entitites returned from the API
-    for entity in response.entities:
-        print(u"Representative name for the entity: {}".format(entity.name))
-        # Get entity type, e.g. PERSON, LOCATION, ADDRESS, NUMBER, et al
-        print(u"Entity type: {}".format(language_v1.Entity.Type(entity.type_).name))
-        # Get the salience score associated with the entity in the [0, 1.0] range
-        print(u"Salience score: {}".format(entity.salience))
-        # Get the aggregate sentiment expressed for this entity in the provided document.
-        sentiment = entity.sentiment
-        print(u"Entity sentiment score: {}".format(sentiment.score))
-        print(u"Entity sentiment magnitude: {}".format(sentiment.magnitude))
-        # Loop over the metadata associated with entity. For many known entities,
-        # the metadata is a Wikipedia URL (wikipedia_url) and Knowledge Graph MID (mid).
-        # Some entity types may have additional metadata, e.g. ADDRESS entities
-        # may have metadata for the address street_name, postal_code, et al.
-        for metadata_name, metadata_value in entity.metadata.items():
-            print(u"{} = {}".format(metadata_name, metadata_value))
-
-        # Loop over the mentions of this entity in the input document.
-        # The API currently supports proper noun mentions.
-        for mention in entity.mentions:
-            print(u"Mention text: {}".format(mention.text.content))
-            # Get the mention type, e.g. PROPER for proper noun
-            print(
-                u"Mention type: {}".format(language_v1.EntityMention.Type(mention.type_).name)
-            )
-
-    # Get the language of the text, which will be the same as
-    # the language specified in the request or, if not specified,
-    # the automatically-detected language.
-    print(u"Language of the text: {}".format(response.language))
-
-
-def basic_text_sentiment_test(tweet):
-    text_sentiment_api_key = access_google_secret(GOOGLE_PROJECT_ID, TEXT_SENTIMENT_API_KEY_SECRET_KEY)
-    text_sentiment = TextSentiment(text_sentiment_api_key)
-    print(text_sentiment.analyse(tweet))
+def get_sentiment(text):
+    sia = SentimentIntensityAnalyzer()
+    return sia.polarity_scores(text)
 
 
 def main():
-    sample_analyze_entity_sentiment("bitcoin is the real deal")
+    # binance = Client(BINANCE_TESTNET_FUTURES_API_KEY, BINANCE_TESTNET_FUTURES_API_SECRET, testnet=True)
+    binance = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
+    # leverage_data = binance.futures_change_leverage(symbol=DOGE_SYMBOL, leverage=LEVERAGE)
+    # max_amount = leverage_data['maxNotionalValue']  # this is the maximum amount (in USDT) that we will be able to trade with the margin level
+    print(binance.futures_account())
+    exit()
+    # print(binance.get_order_book(symbol='DOGEUSDT'))
+    # exit()
+
+    # binance.futures_change_position_margin('DOGEUSDT', 125)
+
+    # binance = Binance(testnet_api_key, testnet_secret_key)
+
+    print(binance.get_all_tickers())
+    # print(binance.get_depth('BNBBTC'))
     exit()
 
     logging.getLogger().setLevel(logging.INFO)
@@ -121,28 +82,34 @@ def main():
 
     # we need a few API keys
     twitter_bearer_token = access_google_secret(GOOGLE_PROJECT_ID, TWITTER_BEARER_TOKEN_SECRET_KEY)
-    text_sentiment_api_key = access_google_secret(GOOGLE_PROJECT_ID, TEXT_SENTIMENT_API_KEY_SECRET_KEY)
     telegram_token = access_google_secret(GOOGLE_PROJECT_ID, TELEGRAM_TOKEN_SECRET_KEY)
     telegram_chat_id = access_google_secret(GOOGLE_PROJECT_ID, TELEGRAM_CHAT_ID_SECRET_KEY)
 
     rules = [
-        {"value": f"(Bitcoin OR BTC) from:{ELON_TWITTER_ID} -is:retweet"},
-        {"value": "bitcoin", "tag": "test"}  # TODO for testing - remove later
+        # {"value": f"(Bitcoin OR BTC) from:{ELON_TWITTER_ID} -is:retweet"},
+        {"value": "bitcoin"}  # TODO for testing - remove later
     ]
 
+    # instantiating the Twitter Stream adapter
     twitter_stream = TwitterStream(twitter_bearer_token)
     twitter_stream.set_rules(rules)
 
-    # Start the stream
+    # instantiating the Telegram adapter
+    telegram = Telegram(telegram_token)
+
+    # start the stream
     tweet_object = twitter_stream.get_stream()
 
-    # If we reach this part it means we have a tweet
+    # if we reach this part it means we have a tweet
     tweet = tweet_object['data']['text']
-    text_sentiment = TextSentiment(text_sentiment_api_key)
-    sentiment = text_sentiment.analyse(tweet)
+    sentiment = get_sentiment(tweet)
 
-    telegram = Telegram(telegram_token)
-    telegram.post(telegram_chat_id, f"A {sentiment} tweet has just been posted: {tweet}")
+    # we don't trade if the compound is below the threshold
+    if sentiment['compound'] < SENTIMENT_COMPOUND_THRESHOLD:
+        telegram.post(telegram_chat_id, f"Ignoring tweet because of low compound: {tweet} [{sentiment['compound']}]")
+        return
+
+    telegram.post(telegram_chat_id, f"Following tweet will trigger a trade: {tweet} [{sentiment['compound']}]")
 
 
 if __name__ == '__main__':
