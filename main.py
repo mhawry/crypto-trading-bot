@@ -1,10 +1,8 @@
-import logging
 from google.cloud import secretmanager
 from nltk.sentiment import SentimentIntensityAnalyzer
-from classes.TwitterStream import TwitterStream
-from classes.Telegram import Telegram
-# from classes.Binance import Binance
-from binance.client import Client
+from classes.TwitterStreamAdapter import TwitterStreamAdapter
+from classes.TelegramAdapter import TelegramAdapter
+from classes.BinanceFuturesAdapter import BinanceFuturesAdapter
 
 GOOGLE_PROJECT_ID = 'winter-berm-302500'  # Google project id for Winter Berm
 ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
@@ -19,8 +17,9 @@ SENTIMENT_COMPOUND_THRESHOLD = 0.5
 
 DOGE_SYMBOL = 'DOGEUSDT'
 LEVERAGE = 20  # using 20x leverage which will give us a max position size of 25,000 USDT
+DEFAULT_ALLOCATION = 0.9  # default percentage of available funds to use for trades
 
-# BINANCE KEYS FOR PROD - BE CAREFUL!!!
+# BINANCE KEYS FOR PROD
 BINANCE_API_KEY = 'lfqRViovtvFFdLgyMpyDsAURCD1qY9Az2X4659uh6CmMHX67D8bM037fi4m7DJF1'
 BINANCE_API_SECRET = 'zSjZhQmdk7h8ogQvZDCnMzPh1kPIdFGz4COe8IAa9tR5lrFs1nh89QpeDCgGo7tM'
 
@@ -39,13 +38,10 @@ def access_google_secret(project_id: str, secret_id: str) -> str:
     can be a version number as a string (e.g. "5") or an alias (e.g. "latest").
     """
 
-    # Create the Secret Manager client.
     client = secretmanager.SecretManagerServiceClient()
 
-    # Build the resource name of the secret version.
     name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
 
-    # Access the secret version.
     response = client.access_secret_version(request={'name': name})
     secret = response.payload.data.decode("UTF-8")
 
@@ -58,27 +54,32 @@ def get_sentiment(text):
 
 
 def main():
-    # binance = Client(BINANCE_TESTNET_FUTURES_API_KEY, BINANCE_TESTNET_FUTURES_API_SECRET, testnet=True)
-    binance = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
-    # leverage_data = binance.futures_change_leverage(symbol=DOGE_SYMBOL, leverage=LEVERAGE)
-    # max_amount = leverage_data['maxNotionalValue']  # this is the maximum amount (in USDT) that we will be able to trade with the margin level
-    print(binance.futures_account())
+    # binance = BinanceFuturesAdapter(
+    #     api_key=BINANCE_API_KEY,
+    #     api_secret=BINANCE_API_SECRET,
+    #     symbol=DOGE_SYMBOL,
+    #     test=False
+    # )
+
+    binance = BinanceFuturesAdapter(
+        api_key=BINANCE_TESTNET_FUTURES_API_KEY,
+        api_secret=BINANCE_TESTNET_FUTURES_API_SECRET,
+        symbol=DOGE_SYMBOL,
+        leverage=LEVERAGE,
+        test=True
+    )
+
+    # test for buying coins
+    mark_price = binance.get_mark_price()
+    usdt_trade_size = binance.get_usdt_trade_size(DEFAULT_ALLOCATION)
+    quantity = int(usdt_trade_size / mark_price)
+    limit_price = round(mark_price*1.0015, 4)  # TODO move to a constant
+    print(mark_price)
+    print(usdt_trade_size)
+    print(quantity)
+    print(limit_price)
+    # print(binance.buy(quantity, limit_price))
     exit()
-    # print(binance.get_order_book(symbol='DOGEUSDT'))
-    # exit()
-
-    # binance.futures_change_position_margin('DOGEUSDT', 125)
-
-    # binance = Binance(testnet_api_key, testnet_secret_key)
-
-    print(binance.get_all_tickers())
-    # print(binance.get_depth('BNBBTC'))
-    exit()
-
-    logging.getLogger().setLevel(logging.INFO)
-
-    logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S')
 
     # we need a few API keys
     twitter_bearer_token = access_google_secret(GOOGLE_PROJECT_ID, TWITTER_BEARER_TOKEN_SECRET_KEY)
@@ -91,11 +92,11 @@ def main():
     ]
 
     # instantiating the Twitter Stream adapter
-    twitter_stream = TwitterStream(twitter_bearer_token)
+    twitter_stream = TwitterStreamAdapter(twitter_bearer_token)
     twitter_stream.set_rules(rules)
 
     # instantiating the Telegram adapter
-    telegram = Telegram(telegram_token)
+    telegram = TelegramAdapter(telegram_token)
 
     # start the stream
     tweet_object = twitter_stream.get_stream()

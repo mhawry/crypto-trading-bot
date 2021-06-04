@@ -2,8 +2,8 @@ import json
 import requests
 
 
-class TwitterStream:
-    """Twitter Stream API wrapper"""
+class TwitterStreamAdapter:
+    """Twitter Stream API adapter"""
 
     def __init__(self, bearer_token: str) -> None:
         self.headers = {'Authorization': f"Bearer {bearer_token}"}

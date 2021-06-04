@@ -1,8 +1,8 @@
 import telegram
 
 
-class Telegram:
-    """Telegram API wrapper"""
+class TelegramAdapter:
+    """Telegram API adapter"""
 
     def __init__(self, token: str) -> None:
         self.bot = telegram.Bot(token=token)

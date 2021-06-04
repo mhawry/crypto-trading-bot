@@ -1,5 +1,4 @@
-python-telegram-bot==13.5
-requests==2.25.1
-google-cloud-secret-manager==2.4.0
+requests~=2.25.1
 nltk~=3.6.2
-python-binance
+python-binance~=1.0.12
+python-telegram-bot~=13.5
