@@ -1,3 +1,5 @@
+__pycache__/
 venv/
 
+# Used by JetBrains IDEs
 .idea/

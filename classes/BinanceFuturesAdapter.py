@@ -1,4 +1,3 @@
-import math
 from binance.client import Client
 from binance.exceptions import BinanceAPIException, BinanceOrderException
 from binance.enums import *
@@ -10,47 +9,28 @@ class BinanceFuturesAdapter:
     def __init__(self, api_key: str, api_secret: str, symbol: str, leverage: int, test=False) -> None:
         self.client = Client(api_key, api_secret, testnet=test)
         self.symbol = symbol
-        self.leverage_data = self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
-        self.set_one_way_position_mode()
+        self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
     def set_one_way_position_mode(self) -> None:
-        """Sets the position mode to one-way"""
+        """Sets one-way position mode"""
         current_position_mode = self.client.futures_get_position_mode()
 
         if current_position_mode['dualSidePosition']:
             self.client.futures_change_position_mode(dualSidePosition=False)
 
-    def get_available_balance(self) -> float:
-        """Returns the available balance in the futures account
+    def get_ticker_data(self) -> dict:
+        return self.client.futures_orderbook_ticker(symbol=self.symbol)
 
-        :rtype float
-        """
-        return float(self.client.futures_account()['availableBalance'])
+    def get_position_amount(self) -> float:
+        return float(self.client.futures_position_information(symbol=self.symbol)[0]['positionAmt'])
 
-    def get_usdt_trade_size(self, allocation: float) -> float:
-        """This will return the size of the trade we should use in USDT.
+    def get_open_orders(self) -> dict:
+        return self.client.futures_get_open_orders(symbol=self.symbol)
 
-        :param allocation: Percentage of available balance to use for the trade.
-        :rtype float
-        """
-        return min(math.floor(self.get_available_balance())*allocation, float(self.leverage_data['maxNotionalValue'])*allocation)
+    def get_order(self, order_id: int) -> dict:
+        return self.client.futures_get_order(symbol=self.symbol, orderId=order_id)
 
-    def get_mark_price(self) -> float:
-        return float(self.client.futures_mark_price(symbol=self.symbol)['markPrice'])
-
-    def create_order(self, side: str, quantity: float, limit_price: float) -> dict:
-        """This will create the Binance order.
-
-        TODO update param descriptions below
-
-        :param side: Long or short
-        :param quantity:
-        :param limit_price:
-        :rtype: dict
-        :raises BinanceAPIException: If there are issues with the API
-        :raises BinanceOrderException: If the order can't be created for some reason
-        """
-
+    def create_limit_order(self, side: str, quantity: float, limit_price: float) -> dict:
         try:
             return self.client.futures_create_order(
                 symbol=self.symbol,
@@ -61,14 +41,43 @@ class BinanceFuturesAdapter:
                 price=limit_price
             )
         except BinanceAPIException as e:
-            raise Exception(f"Binance API error: {e.response} [{e.status_code}]")
+            raise Exception(f"Binance API error: {e.message} [{e.status_code}]")
         except BinanceOrderException as e:
             raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
-    def buy(self, quantity: float, limit_price: float):
-        """Buy crypto"""
-        return self.create_order(SIDE_BUY, quantity, limit_price)
+    def create_stop_order(self, side: str, quantity: float, stop_price: float) -> dict:
+        try:
+            return self.client.futures_create_order(
+                symbol=self.symbol,
+                side=side,
+                type=FUTURE_ORDER_TYPE_STOP_MARKET,
+                quantity=quantity,
+                stopPrice=stop_price
+            )
+        except BinanceAPIException as e:
+            raise Exception(f"Binance API error: {e.message} [{e.status_code}]")
+        except BinanceOrderException as e:
+            raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
-    def sell(self, quantity: float, limit_price: float):
-        """Sell crypto"""
-        return self.create_order(SIDE_SELL, quantity, limit_price)
+    def create_take_profit_order(self, side: str, quantity: float, stop_price: float) -> dict:
+        try:
+            return self.client.futures_create_order(
+                symbol=self.symbol,
+                side=side,
+                type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
+                quantity=quantity,
+                stopPrice=stop_price
+            )
+        except BinanceAPIException as e:
+            raise Exception(f"Binance API error: {e.message} [{e.status_code}]")
+        except BinanceOrderException as e:
+            raise Exception(f"Binance order error: {e.message} [{e.code}]")
+
+    def buy_limit(self, quantity: float, limit_price: float):
+        return self.create_limit_order(SIDE_BUY, quantity, limit_price)
+
+    def set_stop_loss(self, quantity: float, stop_price: float) -> dict:
+        return self.create_stop_order(SIDE_SELL, quantity, stop_price)
+
+    def set_take_profit(self, quantity: float, stop_price: float) -> dict:
+        return self.create_take_profit_order(SIDE_SELL, quantity, stop_price)

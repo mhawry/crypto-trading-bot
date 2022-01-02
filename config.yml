@@ -1,0 +1,19 @@
+---
+# Trading pairs - symbol must match what Binance uses
+TRADING_PAIRS:
+    BTCUSDT:
+        KEYWORDS:
+            - bitcoin
+            - btc
+        QUANTITY: 0.05
+        LEVERAGE: 50
+        STOP_LOSS_MULTIPLIER: 0.95 # 5% stop loss
+        TAKE_PROFIT_MULTIPLIER: 1.25 # 25% take profit
+    DOGEUSDT:
+        KEYWORDS:
+            - dogecoin
+            - doge
+        QUANTITY: 2500
+        LEVERAGE: 20
+        STOP_LOSS_MULTIPLIER: 0.98 # 2% stop loss
+        TAKE_PROFIT_MULTIPLIER: 1.4 # 40% take profit

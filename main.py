@@ -1,116 +1,227 @@
-from google.cloud import secretmanager
+import logging
+import json
+import yaml
+import tweepy
+import threading
+import boto3
+from botocore.exceptions import ClientError
 from nltk.sentiment import SentimentIntensityAnalyzer
-from classes.TwitterStreamAdapter import TwitterStreamAdapter
-from classes.TelegramAdapter import TelegramAdapter
 from classes.BinanceFuturesAdapter import BinanceFuturesAdapter
+from binance.enums import *
 
-GOOGLE_PROJECT_ID = 'winter-berm-302500'  # Google project id for Winter Berm
 ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
 
-# secret names from Google Cloud - change them here if they are changed in GCP
-TELEGRAM_CHAT_ID_SECRET_KEY = 'telegram-chat-id'
-TELEGRAM_TOKEN_SECRET_KEY = 'telegram-token'
-TWITTER_BEARER_TOKEN_SECRET_KEY = 'twitter-bearer-token'
+CONFIG_FILE_PATH = 'config.yml'
+
+# a configuration for the symbol must exist in the config file
+# TODO make this work with multiple symbols
+SYMBOL = 'BTCUSDT'
 
 # compound threshold that will trigger a trade
 SENTIMENT_COMPOUND_THRESHOLD = 0.5
 
-DOGE_SYMBOL = 'DOGEUSDT'
-LEVERAGE = 20  # using 20x leverage which will give us a max position size of 25,000 USDT
-DEFAULT_ALLOCATION = 0.9  # default percentage of available funds to use for trades
+# AWS config
+AWS_REGION = 'ca-central-1'
+AWS_SECRET_NAME = 'WinterBermApiKeys'
 
-# BINANCE KEYS FOR PROD
-BINANCE_API_KEY = 'lfqRViovtvFFdLgyMpyDsAURCD1qY9Az2X4659uh6CmMHX67D8bM037fi4m7DJF1'
-BINANCE_API_SECRET = 'zSjZhQmdk7h8ogQvZDCnMzPh1kPIdFGz4COe8IAa9tR5lrFs1nh89QpeDCgGo7tM'
-
-# BINANCE KEYS MAIN TESTNET - NO FUTURES
-BINANCE_TESTNET_API_KEY = '7xizBlEccM7JTcAIREeF1WOnajHIHfrg0jHWvPTqW2JE5dMAQWH7fWSIQ55zdN3q'
-BINANCE_TESTNET_API_SECRET = 'iMK0YAJdocdoG47ClkrVm3iIGrRocQdRRlTwYNCk8lGW7VOBCcupuOaKd9YI0zJ8'
-
-# BINANCE KEYS FOR TESTNET WITH FUTURES
-BINANCE_TESTNET_FUTURES_API_KEY = '3b4697e7e702c2e3b19f47b96d3903ead2b4874d4737af86261d4ac1d47cec48'
-BINANCE_TESTNET_FUTURES_API_SECRET = 'd0bc528b73c37eb5b5972302ac78478606a487d4b5cbf9222a34317c331b5181'
+# AWS keys from Secrets Manager
+BINANCE_API_KEY_AWS_SECRET_KEY = 'binance_api_key'
+BINANCE_API_SECRET_AWS_SECRET_KEY = 'binance_api_secret'
+TWITTER_CONSUMER_KEY_AWS_SECRET_KEY = 'twitter_consumer_key'
+TWITTER_CONSUMER_SECRET_AWS_SECRET_KEY = 'twitter_consumer_secret'
+TWITTER_ACCESS_TOKEN_AWS_SECRET_KEY = 'twitter_access_token'
+TWITTER_ACCESS_TOKEN_SECRET_AWS_SECRET_KEY = 'twitter_access_token_secret'
 
 
-def access_google_secret(project_id: str, secret_id: str) -> str:
+def load_config(config_file: str) -> dict:
+    """Load yaml config file and returns dict
+
+    :param config_file: Path to the yaml config file
+    :rtype dict
     """
-    Access the payload for the given secret version if one exists. The version
-    can be a version number as a string (e.g. "5") or an alias (e.g. "latest").
-    """
-
-    client = secretmanager.SecretManagerServiceClient()
-
-    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
-
-    response = client.access_secret_version(request={'name': name})
-    secret = response.payload.data.decode("UTF-8")
-
-    return secret
+    with open(config_file) as config_file:
+        return yaml.load(config_file, Loader=yaml.FullLoader)
 
 
-def get_sentiment(text):
+def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
+    session = boto3.session.Session()
+    client = session.client(
+        service_name='secretsmanager',
+        region_name=region_name,
+    )
+
+    try:
+        get_secret_value_response = client.get_secret_value(
+            SecretId=secret_name
+        )
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceNotFoundException':
+            logging.error(f"The requested secret {secret_name} was not found")
+        elif e.response['Error']['Code'] == 'InvalidRequestException':
+            logging.error(f"The request was invalid due to: {e}")
+        elif e.response['Error']['Code'] == 'InvalidParameterException':
+            logging.error(f"The request had invalid params: {e}")
+        elif e.response['Error']['Code'] == 'DecryptionFailure':
+            logging.error(f"The requested secret can't be decrypted using the provided KMS key: {e}")
+        elif e.response['Error']['Code'] == 'InternalServiceError':
+            logging.error(f"An error occurred on service side: {e}")
+    else:
+        # Secrets Manager decrypts the secret value using the associated KMS CMK
+        # Depending on whether the secret was a string or binary, only one of these fields will be populated
+        if 'SecretString' in get_secret_value_response:
+            return json.loads(get_secret_value_response['SecretString'])
+
+    return
+
+
+def get_sentiment(tweet):
     sia = SentimentIntensityAnalyzer()
-    return sia.polarity_scores(text)
+    return sia.polarity_scores(tweet)
 
 
-def main():
-    # binance = BinanceFuturesAdapter(
-    #     api_key=BINANCE_API_KEY,
-    #     api_secret=BINANCE_API_SECRET,
-    #     symbol=DOGE_SYMBOL,
-    #     test=False
-    # )
+def buy():
+    config = load_config(CONFIG_FILE_PATH)
+
+    # making sure we have all the right config variables
+    try:
+        trade_config = config['TRADING_PAIRS'][SYMBOL]
+        leverage = trade_config['LEVERAGE']
+        quantity = trade_config['QUANTITY']
+        stop_loss_multiplier = trade_config['STOP_LOSS_MULTIPLIER']
+        take_profit_multiplier = trade_config['TAKE_PROFIT_MULTIPLIER']
+    except KeyError as e:
+        logging.error(f"Key missing from config: {e}")
+        return
 
     binance = BinanceFuturesAdapter(
-        api_key=BINANCE_TESTNET_FUTURES_API_KEY,
-        api_secret=BINANCE_TESTNET_FUTURES_API_SECRET,
-        symbol=DOGE_SYMBOL,
-        leverage=LEVERAGE,
+        api_key=aws_secrets[BINANCE_API_KEY_AWS_SECRET_KEY],
+        api_secret=aws_secrets[BINANCE_API_SECRET_AWS_SECRET_KEY],
+        symbol=SYMBOL,
+        leverage=leverage,
         test=True
     )
 
-    # test for buying coins
-    mark_price = binance.get_mark_price()
-    usdt_trade_size = binance.get_usdt_trade_size(DEFAULT_ALLOCATION)
-    quantity = int(usdt_trade_size / mark_price)
-    limit_price = round(mark_price*1.0015, 4)  # TODO move to a constant
-    print(mark_price)
-    print(usdt_trade_size)
-    print(quantity)
-    print(limit_price)
-    # print(binance.buy(quantity, limit_price))
-    exit()
+    binance.set_one_way_position_mode()
 
-    # we need a few API keys
-    twitter_bearer_token = access_google_secret(GOOGLE_PROJECT_ID, TWITTER_BEARER_TOKEN_SECRET_KEY)
-    telegram_token = access_google_secret(GOOGLE_PROJECT_ID, TELEGRAM_TOKEN_SECRET_KEY)
-    telegram_chat_id = access_google_secret(GOOGLE_PROJECT_ID, TELEGRAM_CHAT_ID_SECRET_KEY)
-
-    rules = [
-        # {"value": f"(Bitcoin OR BTC) from:{ELON_TWITTER_ID} -is:retweet"},
-        {"value": "bitcoin"}  # TODO for testing - remove later
-    ]
-
-    # instantiating the Twitter Stream adapter
-    twitter_stream = TwitterStreamAdapter(twitter_bearer_token)
-    twitter_stream.set_rules(rules)
-
-    # instantiating the Telegram adapter
-    telegram = TelegramAdapter(telegram_token)
-
-    # start the stream
-    tweet_object = twitter_stream.get_stream()
-
-    # if we reach this part it means we have a tweet
-    tweet = tweet_object['data']['text']
-    sentiment = get_sentiment(tweet)
-
-    # we don't trade if the compound is below the threshold
-    if sentiment['compound'] < SENTIMENT_COMPOUND_THRESHOLD:
-        telegram.post(telegram_chat_id, f"Ignoring tweet because of low compound: {tweet} [{sentiment['compound']}]")
+    # we don't want to buy if we're already long
+    if binance.get_position_amount() != 0:
+        logging.info("We are already in a trade, do nothing")
         return
 
-    telegram.post(telegram_chat_id, f"Following tweet will trigger a trade: {tweet} [{sentiment['compound']}]")
+    # to be safe, we don't want to buy if there are already open orders on the symbol
+    if binance.get_open_orders():
+        logging.info("There are already open orders on this symbol, do nothing")
+        return
+
+    # if we reach this point it means we're ready to buy
+    # using the current ask price as the limit price
+    # TODO should we really do this? need to double-check
+    # why convert to float?
+    limit_price = float(binance.get_ticker_data()['askPrice'])
+
+    logging.info(f"Placing BUY LIMIT order for {quantity} {SYMBOL} at {limit_price}")
+
+    try:
+        order_id = binance.buy_limit(quantity, limit_price)['orderId']
+    except Exception as e:
+        logging.error(e)
+        return
+
+    order = binance.get_order(order_id)
+
+    # making sure the order is filled before we move on to the stop orders
+    if order['status'] == ORDER_STATUS_FILLED:
+        logging.info(f"Limit order #{order['orderId']} filled at {order['price']}")
+    else:
+        logging.error(f"Limit order #{order['orderId']} has NOT been filled: {order}")
+        return
+
+    # at this point we are ready to set the stop loss
+    stop_price = round(float(order['price'])*stop_loss_multiplier, 2)
+
+    logging.info(f"Placing SELL STOP order for {quantity} {SYMBOL} at {stop_price}")
+
+    try:
+        order = binance.set_stop_loss(quantity, stop_price)
+    except Exception as e:
+        logging.error(e)
+        return
+
+    if order['status'] == ORDER_STATUS_NEW:
+        logging.info(f"SELL STOP order #{order['orderId']} placed at {order['stopPrice']}")
+    else:
+        logging.error(f"SELL STOP #{order['orderId']} has NOT been placed: {order}")
+
+    # at this point we are ready to set the trailing stop
+    stop_price = round(limit_price*take_profit_multiplier, 2)
+
+    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {SYMBOL} at {stop_price}")
+
+    try:
+        order = binance.set_take_profit(quantity, stop_price)
+    except Exception as e:
+        logging.error(e)
+        return
+
+    if order['status'] == ORDER_STATUS_NEW:
+        logging.info(f"SELL STOP order #{order['orderId']} placed at {order['stopPrice']}")
+    else:
+        logging.error(f"SELL STOP #{order['orderId']} has NOT been placed: {order}")
+
+
+class TwitterStream(tweepy.Stream):
+    def on_status(self, status):
+        logging.info(f"Tweet logged: {status.text}")
+
+        sentiment = get_sentiment(status.text)
+
+        # if the compound is above the threshold, buy
+        if sentiment['compound'] >= SENTIMENT_COMPOUND_THRESHOLD:
+            logging.info(f"Sentiment compound ({sentiment['compound']}) higher than threshold - triggering trade")
+
+            thread = threading.Thread(target=buy)
+            thread.start()
+            thread.join()
+
+
+# standard logging config
+logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO)
+
+# pull the secrets from AWS Secrets Manager
+# TODO there may be a better way to do this and store them all in variables here
+aws_secrets = get_aws_secrets(AWS_SECRET_NAME, AWS_REGION)
+
+
+def main():
+    logging.info("Program started")
+
+    # shouldn't happen but just in case
+    if aws_secrets is None:
+        logging.error(f"Unable to pull secrets from AWS Secrets Manager [Secret name: {AWS_SECRET_NAME}; Region: {AWS_REGION}]. Exiting.")
+
+        # we can't move forward without the creds
+        exit()
+
+    buy()
+    exit()
+
+    twitter_stream = TwitterStream(consumer_key=aws_secrets[TWITTER_CONSUMER_KEY_AWS_SECRET_KEY],
+                                   consumer_secret=aws_secrets[TWITTER_CONSUMER_SECRET_AWS_SECRET_KEY],
+                                   access_token=aws_secrets[TWITTER_ACCESS_TOKEN_AWS_SECRET_KEY],
+                                   access_token_secret=aws_secrets[TWITTER_ACCESS_TOKEN_SECRET_AWS_SECRET_KEY])
+
+    # rules = [
+    #     {"value": f"(Bitcoin OR BTC) from:{ELON_TWITTER_ID} -is:retweet"},
+    #     {"value": "bitcoin"}  # TODO for testing - remove later
+    # ]
+
+    twitter_stream.filter(track=["Bitcoin", "BTC", "Doge"], languages=["en"])
+    twitter_stream.sample()
+
+    # TODO will we ever reach this part?
+    logging.info("Program stopped")
 
 
 if __name__ == '__main__':
