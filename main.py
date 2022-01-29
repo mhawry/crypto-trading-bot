@@ -95,7 +95,8 @@ def launch_trade(pair: str) -> None:
     position_info = binance.get_position_information(pair)
 
     # only change the leverage if it isn't already set (saves us an API call)
-    if position_info['leverage'] != leverage:
+    # position_info['leverage'] is returned as a string
+    if int(position_info['leverage']) != leverage:
         binance.set_leverage(pair, leverage)
         logging.info(f"Leverage set to {leverage}:1")
 
@@ -163,7 +164,7 @@ class TwitterStream(TwitterStreamAdapter):
                 json_response = json.loads(response_line)
                 tweet = json_response['data']
 
-                # TODO what if Elon tweets about multiple cryptos at the same time?
+                # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
                 pair = json_response['matching_rules'][0]['tag']
 
                 logging.info(f"Tweet logged: {tweet['text']} for {pair} trading pair. Launching trade.")
@@ -195,7 +196,7 @@ else:
     logging.warning("USING PRODUCTION CREDENTIALS")
     aws_secret_name = AWS_SECRET_NAME
 
-# preloading the config this way we'll save time when we're ready to trade
+# preloading the config to save time when we're ready to trade
 config = load_config(CONFIG_FILE_PATH)
 try:
     trade_config = config['trading_pairs']
@@ -203,14 +204,14 @@ except KeyError as e:
     logging.error(f"Error loading config: {e}")
     sys.exit()
 
-aws_secrets = get_aws_secrets(aws_secret_name, AWS_REGION)
-
-# shouldn't happen but just in case
-if aws_secrets is None:
-    logging.error(f"Unable to pull secrets from AWS Secrets Manager [Secret name: {aws_secret_name}; Region: {AWS_REGION}]. Exiting.")
+try:
+    aws_secrets = get_aws_secrets(aws_secret_name, AWS_REGION)
+except Exception as e:
+    logging.error(f"Unable to pull secrets from AWS Secrets Manager: {e}")
     sys.exit()
 
 # unpack the API keys
+# TODO catch exceptions here in case a secret is missing in AWS
 binance_api_key, binance_api_secret, twitter_api_bearer_token = itemgetter(BINANCE_API_KEY_AWS_SECRET_KEY, BINANCE_API_SECRET_AWS_SECRET_KEY, TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY)(aws_secrets)
 
 try:
@@ -227,17 +228,15 @@ except BinanceAPIException as e:
 def main():
     logging.info("Program started")
 
-    config = load_config(CONFIG_FILE_PATH)
-
     rules = []
-    for symbol, config in config['trading_pairs'].items():
+    for symbol, pair_config in trade_config.items():
         # we're pulling the tick size here and adding it to the local config
-        # this saves an API call when launching the trade and improves latency
+        # this improves latency by "saving" an API call before placing the orders
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
 
         # TODO IMPORTANT make rules pull Elon's tweet only - {"value": f"({keywords}) from:{ELON_TWITTER_ID} -is:retweet"}
         rule = {
-            'value': '(' + ' OR '.join(config['keywords']) + ')',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + ')',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
