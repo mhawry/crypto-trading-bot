@@ -1,6 +1,6 @@
-nltk~=3.6.2
 python-binance~=1.0.12
 tweepy~=4.4.0
 PyYAML==6.0
 boto3~=1.20.26
 botocore~=1.23.26
+requests~=2.26.0
