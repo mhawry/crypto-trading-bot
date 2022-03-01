@@ -234,12 +234,16 @@ def main():
         # this improves latency by "saving" an API call before placing the orders
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
 
-        # TODO IMPORTANT make rules pull Elon's tweet only - {"value": f"({keywords}) from:{ELON_TWITTER_ID} -is:retweet"}
         rule = {
-            'value': '(' + ' OR '.join(pair_config['keywords']) + ')',
+            # 'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
+
+    # for testing - remove later
+    launch_trade('BTCUSDT')
+    exit()
 
     twitter_stream = TwitterStream(twitter_api_bearer_token)
 
