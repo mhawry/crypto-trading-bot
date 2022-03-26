@@ -18,7 +18,7 @@ ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
 CONFIG_FILE_PATH = 'config.yml'
 
 # AWS config
-AWS_REGION = 'ca-central-1'
+AWS_REGION = 'ap-northeast-1'
 AWS_SECRET_NAME = 'WinterBermApiKeys'
 AWS_SECRET_NAME_DEV = 'WinterBermApiKeys-dev'
 
@@ -32,6 +32,10 @@ def load_config(config_file: str) -> dict:
     """Loads yaml config"""
     with open(config_file) as config_file:
         return yaml.load(config_file, Loader=yaml.FullLoader)
+
+
+def format_price(price: float) -> str:
+    return '{:.2f}'.format(price)
 
 
 def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
@@ -109,7 +113,7 @@ def launch_trade(pair: str) -> None:
     # using the current ask price times a multiplier as the limit price
     limit_price = round_step_size(binance.get_ask_price(pair)*limit_price_multiplier, tick_size)
 
-    logging.info(f"Placing BUY LIMIT order for {quantity} {pair} at {limit_price}")
+    logging.info(f"Placing BUY LIMIT order for {quantity} {pair} at {format_price(limit_price)}")
 
     try:
         order_id = binance.buy_limit(pair, quantity, limit_price)['orderId']
@@ -121,15 +125,15 @@ def launch_trade(pair: str) -> None:
 
     # making sure the order is filled before we move on to the stop orders
     if order['status'] == ORDER_STATUS_FILLED:
-        logging.info(f"Limit order #{order['orderId']} filled at {order['price']}")
+        logging.info(f"BUY LIMIT order #{order['orderId']} filled at {order['price']}")
         filled_price = float(order['price'])  # order['price'] is returned as a string
     else:
-        logging.error(f"Limit order #{order['orderId']} has NOT been filled: {order}")
+        logging.error(f"BUY LIMIT order #{order['orderId']} has NOT been filled: {order}")
         return
 
     # stop-loss
     stop_price = round_step_size(filled_price*stop_loss_multiplier, tick_size)
-    logging.info(f"Placing SELL STOP order for {quantity} {pair} at {stop_price}")
+    logging.info(f"Placing SELL STOP order for {quantity} {pair} at {format_price(stop_price)}")
     try:
         order = binance.set_stop_loss(pair, quantity, stop_price)
     except Exception as e:
@@ -143,7 +147,7 @@ def launch_trade(pair: str) -> None:
 
     # take-profit
     stop_price = round_step_size(filled_price*take_profit_multiplier, tick_size)
-    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {pair} at {stop_price}")
+    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {pair} at {format_price(stop_price)}")
     try:
         order = binance.set_take_profit(pair, quantity, stop_price)
     except Exception as e:
@@ -151,9 +155,9 @@ def launch_trade(pair: str) -> None:
         return
 
     if order['status'] == ORDER_STATUS_NEW:
-        logging.info(f"SELL STOP order #{order['orderId']} placed at {order['stopPrice']}")
+        logging.info(f"SELL TAKE PROFIT order #{order['orderId']} placed at {order['stopPrice']}")
     else:
-        logging.error(f"SELL STOP #{order['orderId']} has NOT been placed: {order}")
+        logging.error(f"SELL TAKE PROFIT #{order['orderId']} has NOT been placed: {order}")
 
 
 class TwitterStream(TwitterStreamAdapter):
@@ -167,7 +171,7 @@ class TwitterStream(TwitterStreamAdapter):
                 # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
                 pair = json_response['matching_rules'][0]['tag']
 
-                logging.info(f"Tweet logged: {tweet['text']} for {pair} trading pair. Launching trade.")
+                logging.info(f"Tweet {tweet['id']} found for {pair} trading pair")
 
                 thread = threading.Thread(target=launch_trade, args=(pair, ))
                 thread.start()
@@ -178,6 +182,8 @@ class TwitterStream(TwitterStreamAdapter):
 logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S',
                     level=logging.INFO)
+
+logging.info("Program started")
 
 parser = argparse.ArgumentParser(description="Trigger crypto trades based on Elon Musk's tweets")
 parser.add_argument('--dry-run',
@@ -226,8 +232,6 @@ except BinanceAPIException as e:
 
 
 def main():
-    logging.info("Program started")
-
     rules = []
     for symbol, pair_config in trade_config.items():
         # we're pulling the tick size here and adding it to the local config
@@ -235,15 +239,11 @@ def main():
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
 
         rule = {
-            # 'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet',
-            'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet',
+            # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
-
-    # for testing - remove later
-    launch_trade('BTCUSDT')
-    exit()
 
     twitter_stream = TwitterStream(twitter_api_bearer_token)
 
@@ -255,6 +255,8 @@ def main():
         logging.info("Setting up new rules...")
         twitter_stream.add_rules(rules)
         logging.info("Rules have been set. Starting the stream...")
+    else:
+        logging.warning("Using existing Twitter rules...")
 
     twitter_stream.get_stream()
 
