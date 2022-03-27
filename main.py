@@ -1,6 +1,7 @@
 import sys
 import logging
 import json
+import time
 import yaml
 import threading
 import argparse
@@ -257,6 +258,10 @@ def main():
     logging.info("Starting Twitter stream")
 
     try:
+        twitter_stream.get_stream()
+    except ConnectionResetError:
+        # connection broke for some reason, wait 1 second and reconnect
+        time.sleep(1)
         twitter_stream.get_stream()
     except Exception as e:
         logging.error(e)
