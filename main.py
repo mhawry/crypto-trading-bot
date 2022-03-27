@@ -34,10 +34,6 @@ def load_config(config_file: str) -> dict:
         return yaml.load(config_file, Loader=yaml.FullLoader)
 
 
-def format_price(price: float) -> str:
-    return '{:.2f}'.format(price)
-
-
 def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
     """Retrieves secrets from AWS Secrets Manager
 
@@ -113,7 +109,7 @@ def launch_trade(pair: str) -> None:
     # using the current ask price times a multiplier as the limit price
     limit_price = round_step_size(binance.get_ask_price(pair)*limit_price_multiplier, tick_size)
 
-    logging.info(f"Placing BUY LIMIT order for {quantity} {pair} at {format_price(limit_price)}")
+    logging.info(f"Placing BUY LIMIT order for {quantity} {pair} at {limit_price}")
 
     try:
         order_id = binance.buy_limit(pair, quantity, limit_price)['orderId']
@@ -133,7 +129,7 @@ def launch_trade(pair: str) -> None:
 
     # stop-loss
     stop_price = round_step_size(filled_price*stop_loss_multiplier, tick_size)
-    logging.info(f"Placing SELL STOP order for {quantity} {pair} at {format_price(stop_price)}")
+    logging.info(f"Placing SELL STOP order for {quantity} {pair} at {stop_price}")
     try:
         order = binance.set_stop_loss(pair, quantity, stop_price)
     except Exception as e:
@@ -147,7 +143,7 @@ def launch_trade(pair: str) -> None:
 
     # take-profit
     stop_price = round_step_size(filled_price*take_profit_multiplier, tick_size)
-    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {pair} at {format_price(stop_price)}")
+    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {pair} at {stop_price}")
     try:
         order = binance.set_take_profit(pair, quantity, stop_price)
     except Exception as e:
@@ -239,8 +235,8 @@ def main():
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
 
         rule = {
-            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet',
-            # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
+            # 'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID}',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
@@ -248,17 +244,23 @@ def main():
     twitter_stream = TwitterStream(twitter_api_bearer_token)
 
     if args.skip_rules is False:
-        logging.info("Retrieving current rules...")
+        logging.info("Retrieving current rules")
         current_rules = twitter_stream.get_rules()
-        logging.info("Removing existing rules...")
+        logging.info("Removing existing rules")
         twitter_stream.delete_all_rules(current_rules)
-        logging.info("Setting up new rules...")
+        logging.info("Setting up new rules")
         twitter_stream.add_rules(rules)
-        logging.info("Rules have been set. Starting the stream...")
+        logging.info("New rules have been set")
     else:
-        logging.warning("Using existing Twitter rules...")
+        logging.warning("Using existing Twitter rules")
 
-    twitter_stream.get_stream()
+    logging.info("Starting Twitter stream")
+
+    try:
+        twitter_stream.get_stream()
+    except Exception as e:
+        logging.error(e)
+        sys.exit()
 
 
 if __name__ == '__main__':
