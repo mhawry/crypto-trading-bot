@@ -37,7 +37,7 @@ class TwitterStreamAdapter:
                                 auth=self.bearer_oauth)
 
         if response.status_code != 200:
-            raise Exception(f"Cannot get rules (HTTP {response.status_code}): {response.text}")
+            raise Exception(f"Cannot get rules: {response.text} [{response.status_code}]")
 
         return response.json()
 
@@ -64,7 +64,7 @@ class TwitterStreamAdapter:
                                  json=payload)
 
         if response.status_code != 200:
-            raise Exception(f"Cannot delete rules (HTTP {response.status_code}): {response.text}")
+            raise Exception(f"Cannot delete rules: {response.text} [{response.status_code}]")
 
     def add_rules(self, rules: list) -> None:
         """Add rules for the Filtered Stream Twitter API
@@ -85,7 +85,7 @@ class TwitterStreamAdapter:
                                  json=payload)
 
         if response.status_code != 201:
-            raise Exception(f"Cannot add rules (HTTP {response.status_code}): {response.text}")
+            raise Exception(f"Cannot add rules: {response.text} [{response.status_code}]")
 
     def get_stream(self):
         """Start the Filtered API stream
@@ -98,8 +98,5 @@ class TwitterStreamAdapter:
         response = requests.get(url="https://api.twitter.com/2/tweets/search/stream",
                                 auth=self.bearer_oauth,
                                 stream=True)
-
-        if response.status_code != 200:
-            raise Exception(f"Cannot get stream (HTTP {response.status_code}): {response.text}")
 
         return response

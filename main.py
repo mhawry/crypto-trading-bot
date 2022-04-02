@@ -28,6 +28,10 @@ BINANCE_API_KEY_AWS_SECRET_KEY = 'binance_api_key'
 BINANCE_API_SECRET_AWS_SECRET_KEY = 'binance_api_secret'
 TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY = 'twitter_api_bearer_token'
 
+# TODO come up with better names for these
+TWITTER_CONNECTION_RESET_RETRY_SECONDS = 5
+TWITTER_DUPLICATE_CONNECTION_RETRY_SECONDS = 30
+
 
 def load_config(config_file: str) -> dict:
     """Loads yaml config"""
@@ -157,12 +161,44 @@ def launch_trade(pair: str) -> None:
         logging.error(f"SELL TAKE PROFIT #{order['orderId']} has NOT been placed: {order}")
 
 
+def get_twitter_stream(twitter_stream):
+    try:
+        twitter_stream.get_stream()
+    except ConnectionResetError:
+        # connection broke for some reason, wait and retry
+        # TODO apply exponential backoff here
+        logging.info("Twitter Stream API connection reset... restarting")
+        time.sleep(TWITTER_CONNECTION_RESET_RETRY_SECONDS)
+        get_twitter_stream(twitter_stream)
+    except Exception as e:
+        logging.error(e)
+        sys.exit()
+
+
 class TwitterStream(TwitterStreamAdapter):
     def get_stream(self):
         response = super().get_stream()
+
+        # stream is already running somewhere - this is usually because the
+        # connection is still open from a previous run - wait and retry
+        # TODO apply exponential backoff here
+        if response.status_code == 429:
+            logging.warning("Twitter Stream already running... wait and retry")
+            time.sleep(TWITTER_DUPLICATE_CONNECTION_RETRY_SECONDS)
+            self.get_stream()
+        elif response.status_code != 200:
+            raise Exception(f"Cannot get stream (HTTP {response.status_code}): {response.text}")
+
+        logging.info("Twitter Stream running successfully")
+
         for response_line in response.iter_lines():
             if response_line:
                 json_response = json.loads(response_line)
+
+                if 'data' not in json_response:
+                    logging.warning(f"Invalid response from Twitter Stream API: {json_response}")
+                    continue
+
                 tweet = json_response['data']
 
                 # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
@@ -257,20 +293,12 @@ def main():
 
     logging.info("Starting Twitter stream")
 
-    try:
-        twitter_stream.get_stream()
-    except ConnectionResetError:
-        # connection broke for some reason, wait 1 second and reconnect
-        time.sleep(1)
-        twitter_stream.get_stream()
-    except Exception as e:
-        logging.error(e)
-        sys.exit()
+    get_twitter_stream(twitter_stream)
 
 
 if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        logging.info("Program ended")
+        logging.info("Program terminated")
         sys.exit(0)
