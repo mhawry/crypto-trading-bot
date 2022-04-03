@@ -139,8 +139,8 @@ class BinanceFuturesAdapter:
         except BinanceOrderException as e:
             raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
-    def _create_take_profit_order(self, symbol: str, side: str, quantity: float, stop_price: float) -> dict:
-        """Generates a new take-profit market order on Binance
+    def _create_trailing_stop_order(self, symbol: str, side: str, quantity: float, activation_price: float, callback_rate: float) -> dict:
+        """Generates a new trailing stop market order on Binance
 
         Parameters
         ----------
@@ -150,8 +150,10 @@ class BinanceFuturesAdapter:
             The position side (SIDE_BUY or SIDE_SELL)
         quantity : float
             The order amount/size
-        stop_price : float
-            The stop price to use for the order.
+        activation_price : float
+            The activation price to use for the order.
+        callback_rate : float
+            The callback rate to use for the order.
 
         Returns
         -------
@@ -169,9 +171,10 @@ class BinanceFuturesAdapter:
             return self.client.futures_create_order(
                 symbol=symbol,
                 side=side,
-                type=FUTURE_ORDER_TYPE_TAKE_PROFIT_MARKET,
+                type='TRAILING_STOP_MARKET',
                 quantity=quantity,
-                stopPrice=stop_price
+                activationPrice=activation_price,
+                callbackRate=callback_rate
             )
         except BinanceAPIException as e:
             raise Exception(f"Binance API error: {e.message} [{e.status_code}]")
@@ -186,6 +189,6 @@ class BinanceFuturesAdapter:
         """Creates a new stop-loss order"""
         return self._create_stop_order(symbol, SIDE_SELL, quantity, stop_price)
 
-    def set_take_profit(self, symbol: str, quantity: float, stop_price: float) -> dict:
-        """Creates a new take-profit order"""
-        return self._create_take_profit_order(symbol, SIDE_SELL, quantity, stop_price)
+    def set_trailing_stop(self, symbol: str, quantity: float, activation_price: float, callback_rate: float) -> dict:
+        """Creates a new trailing stop order"""
+        return self._create_trailing_stop_order(symbol, SIDE_SELL, quantity, activation_price, callback_rate)

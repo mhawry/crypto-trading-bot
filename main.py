@@ -13,6 +13,7 @@ from binance.exceptions import BinanceAPIException
 from botocore.exceptions import ClientError
 from classes.BinanceFuturesAdapter import BinanceFuturesAdapter
 from classes.TwitterStreamAdapter import TwitterStreamAdapter
+from classes.TelegramAdapter import TelegramAdapter
 
 ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
 
@@ -27,6 +28,8 @@ AWS_SECRET_NAME_DEV = 'WinterBermApiKeys-dev'
 BINANCE_API_KEY_AWS_SECRET_KEY = 'binance_api_key'
 BINANCE_API_SECRET_AWS_SECRET_KEY = 'binance_api_secret'
 TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY = 'twitter_api_bearer_token'
+TELEGRAM_API_TOKEN_AWS_SECRET_KEY = 'telegram_api_token'
+TELEGRAM_CHAT_ID_AWS_SECRET_KEY = 'telegram_chat_id'
 
 # TODO come up with better names for these
 TWITTER_CONNECTION_RESET_RETRY_SECONDS = 5
@@ -93,7 +96,11 @@ def launch_trade(pair: str) -> None:
         The pair to trade (needs to match the symbol in Binance)
     """
     # extracting trading parameters from config
-    leverage, quantity, stop_loss_multiplier, take_profit_multiplier, limit_price_multiplier, tick_size = itemgetter('leverage', 'quantity', 'stop_loss_multiplier', 'take_profit_multiplier', 'limit_price_multiplier', 'tick_size')(trade_config[pair])
+    try:
+        leverage, quantity, limit_price_multiplier, stop_loss_multiplier, take_profit_activation_multiplier, take_profit_callback_rate, tick_size = itemgetter('leverage', 'quantity', 'limit_price_multiplier', 'stop_loss_multiplier', 'take_profit_activation_multiplier', 'take_profit_callback_rate', 'tick_size')(trade_config[pair])
+    except KeyError as e:
+        logging.error(f"Missing key in config for {pair}: {e}")
+        sys.exit()
 
     logging.info(f"Launching trade for {pair}")
 
@@ -132,6 +139,8 @@ def launch_trade(pair: str) -> None:
         logging.error(f"BUY LIMIT order #{order['orderId']} has NOT been filled: {order}")
         return
 
+    buy_order_limit_price = order['price']  # we need this for the alert later
+
     # stop-loss
     stop_price = round_step_size(filled_price*stop_loss_multiplier, tick_size)
     logging.info(f"Placing SELL STOP order for {quantity} {pair} at {stop_price}")
@@ -146,19 +155,21 @@ def launch_trade(pair: str) -> None:
     else:
         logging.error(f"SELL STOP #{order['orderId']} has NOT been placed: {order}")
 
-    # take-profit
-    stop_price = round_step_size(filled_price*take_profit_multiplier, tick_size)
-    logging.info(f"Placing SELL TAKE PROFIT order for {quantity} {pair} at {stop_price}")
+    # trailing-stop
+    activation_price = round_step_size(filled_price*take_profit_activation_multiplier, tick_size)
+    logging.info(f"Placing {take_profit_callback_rate}% TRAILING STOP order for {quantity} {pair} at {activation_price}")
     try:
-        order = binance.set_take_profit(pair, quantity, stop_price)
+        order = binance.set_trailing_stop(pair, quantity, activation_price, take_profit_callback_rate)
     except Exception as e:
         logging.error(e)
         return
 
     if order['status'] == ORDER_STATUS_NEW:
-        logging.info(f"SELL TAKE PROFIT order #{order['orderId']} placed at {order['stopPrice']}")
+        logging.info(f"{take_profit_callback_rate}% TRAILING STOP order #{order['orderId']} placed at {activation_price}")
     else:
-        logging.error(f"SELL TAKE PROFIT #{order['orderId']} has NOT been placed: {order}")
+        logging.error(f"TRAILING STOP order #{order['orderId']} has NOT been placed: {order}")
+
+    telegram.send_message(telegram_chat_id, f"Bough {quantity} {pair} at {buy_order_limit_price}")
 
 
 def get_twitter_stream(twitter_stream):
@@ -250,8 +261,11 @@ except Exception as e:
     sys.exit()
 
 # unpack the API keys
-# TODO catch exceptions here in case a secret is missing in AWS
-binance_api_key, binance_api_secret, twitter_api_bearer_token = itemgetter(BINANCE_API_KEY_AWS_SECRET_KEY, BINANCE_API_SECRET_AWS_SECRET_KEY, TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY)(aws_secrets)
+try:
+    binance_api_key, binance_api_secret, twitter_api_bearer_token, telegram_api_token, telegram_chat_id = itemgetter(BINANCE_API_KEY_AWS_SECRET_KEY, BINANCE_API_SECRET_AWS_SECRET_KEY, TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY, TELEGRAM_API_TOKEN_AWS_SECRET_KEY, TELEGRAM_CHAT_ID_AWS_SECRET_KEY)(aws_secrets)
+except KeyError as e:
+    logging.error(f"Missing AWS secret key: {e}")
+    sys.exit()
 
 try:
     binance = BinanceFuturesAdapter(
@@ -261,6 +275,12 @@ try:
     )
 except BinanceAPIException as e:
     logging.error(f"Binance API error: {e.message} [{e.status_code}]")
+    sys.exit()
+
+try:
+    telegram = TelegramAdapter(token=telegram_api_token)
+except Exception as e:
+    logging.error(f"Telegram API error: {e}")
     sys.exit()
 
 
