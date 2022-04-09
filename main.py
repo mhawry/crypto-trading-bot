@@ -125,11 +125,11 @@ def launch_trade(pair: str) -> None:
 
     try:
         order_id = binance.buy_limit(pair, quantity, limit_price)['orderId']
+        order = binance.get_order(pair, order_id)
     except Exception as e:
         logging.error(e)
+        telegram.send_message(telegram_chat_id, "WARNING buy order execution broke")  # notification in case the program crashes
         return
-
-    order = binance.get_order(pair, order_id)
 
     # making sure the order is filled before we move on to the stop orders
     if order['status'] == ORDER_STATUS_FILLED:
@@ -148,6 +148,7 @@ def launch_trade(pair: str) -> None:
         order = binance.set_stop_loss(pair, quantity, stop_price)
     except Exception as e:
         logging.error(e)
+        telegram.send_message(telegram_chat_id, "WARNING stop-loss order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
@@ -162,6 +163,7 @@ def launch_trade(pair: str) -> None:
         order = binance.set_trailing_stop(pair, quantity, activation_price, take_profit_callback_rate)
     except Exception as e:
         logging.error(e)
+        telegram.send_message(telegram_chat_id, "WARNING trailing-stop order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
