@@ -31,6 +31,18 @@ class BinanceFuturesAdapter:
                     if symbol_filter['filterType'] == 'PRICE_FILTER':
                         return float(symbol_filter['tickSize'])
 
+    def get_quantity_precision(self, symbol: str) -> float:
+        """Gets the quantity precision for a given symbol"""
+        info = self.client.futures_exchange_info()
+
+        for symbol_info in info['symbols']:
+            if symbol_info['symbol'] == symbol:
+                return symbol_info['quantityPrecision']
+
+    def get_margin_balance(self) -> dict:
+        """Returns the margin balance in the account"""
+        return self.client.futures_account()['totalMarginBalance']
+
     def get_position_information(self, symbol: str) -> dict:
         """Returns position information on a given symbol"""
         return self.client.futures_position_information(symbol=symbol)[0]

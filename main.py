@@ -97,7 +97,7 @@ def launch_trade(pair: str) -> None:
     """
     # extracting trading parameters from config
     try:
-        leverage, quantity, limit_price_multiplier, stop_loss_multiplier, take_profit_activation_multiplier, take_profit_callback_rate, tick_size = itemgetter('leverage', 'quantity', 'limit_price_multiplier', 'stop_loss_multiplier', 'take_profit_activation_multiplier', 'take_profit_callback_rate', 'tick_size')(trade_config[pair])
+        leverage, allocation, limit_price_multiplier, stop_loss_multiplier, take_profit_activation_multiplier, take_profit_callback_rate, tick_size, quantity_precision = itemgetter('leverage', 'allocation', 'limit_price_multiplier', 'stop_loss_multiplier', 'take_profit_activation_multiplier', 'take_profit_callback_rate', 'tick_size', 'quantity_precision')(trade_config[pair])
     except KeyError as e:
         logging.error(f"Missing key in config for {pair}: {e}")
         sys.exit()
@@ -116,6 +116,9 @@ def launch_trade(pair: str) -> None:
     if float(position_info['positionAmt']) > 0:
         logging.info("We are already in a trade, do nothing")
         return
+
+    # calculate the amount we want to buy
+    quantity = round((float(margin_balance)*allocation*leverage)/float(position_info['markPrice']), quantity_precision)
 
     # if we reach this point it means we're ready to place the orders
     # using the current ask price times a multiplier as the limit price
@@ -251,7 +254,7 @@ else:
 # preloading the config to save time when we're ready to trade
 config = load_config(CONFIG_FILE_PATH)
 try:
-    trade_config = config['trading_pairs']
+    trade_config = config['trading_pairs']['dev'] if args.dry_run else config['trading_pairs']['prod']
 except KeyError as e:
     logging.error(f"Error loading config: {e}")
     sys.exit()
@@ -286,12 +289,17 @@ except Exception as e:
     sys.exit()
 
 
+# will be updated in main()
+margin_balance = 0.0
+
+
 def main():
     rules = []
     for symbol, pair_config in trade_config.items():
         # we're pulling the tick size here and adding it to the local config
         # this improves latency by "saving" an API call before placing the orders
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
+        trade_config[symbol]['quantity_precision'] = binance.get_quantity_precision(symbol)
 
         rule = {
             'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID}',
@@ -299,6 +307,9 @@ def main():
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
+
+    global margin_balance
+    margin_balance = binance.get_margin_balance()
 
     twitter_stream = TwitterStream(twitter_api_bearer_token)
 

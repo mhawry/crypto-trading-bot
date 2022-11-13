@@ -1,37 +1,67 @@
 ---
 # Trading pairs - symbol must match what Binance uses
 trading_pairs:
-    BTCUSDT:
-        leverage: 100
-        quantity: 0.4
-#        quantity: 0.01
-        limit_price_multiplier: 1.0005
-        stop_loss_multiplier: 0.995
-        take_profit_activation_multiplier: 1.025
-        take_profit_callback_rate: 0.5
-        keywords:
-            - bitcoin
-            - btc
-    ETHUSDT:
-        leverage: 75
-        quantity: 5
-#        quantity: 0.1
-        limit_price_multiplier: 1.0005
-        stop_loss_multiplier: 0.995
-        take_profit_activation_multiplier: 1.025
-        take_profit_callback_rate: 0.5
-        keywords:
-            - ethereum
-            - ether
-            - eth
-    DOGEUSDT:
-        leverage: 50
-        quantity: 70000
-#        quantity: 10000
-        limit_price_multiplier: 1.0005
-        stop_loss_multiplier: 0.995
-        take_profit_activation_multiplier: 1.025
-        take_profit_callback_rate: 0.5
-        keywords:
-            - dogecoin
-            - doge
+    dev:
+        BTCUSDT:
+            leverage: 25
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - bitcoin
+                - btc
+        DOGEUSDT:
+            leverage: 10
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - dogecoin
+                - doge
+        ETHUSDT:
+            leverage: 5
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - ethereum
+                - ether
+                - eth
+    prod:
+        BTCUSDT:
+            leverage: 100
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - bitcoin
+                - btc
+        DOGEUSDT:
+            leverage: 50
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - dogecoin
+                - doge
+        ETHUSDT:
+            leverage: 75
+            allocation: 0.9
+            limit_price_multiplier: 1.0005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
+            keywords:
+                - ethereum
+                - ether
+                - eth
