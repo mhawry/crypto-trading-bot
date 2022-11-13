@@ -31,9 +31,8 @@ TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY = 'twitter_api_bearer_token'
 TELEGRAM_API_TOKEN_AWS_SECRET_KEY = 'telegram_api_token'
 TELEGRAM_CHAT_ID_AWS_SECRET_KEY = 'telegram_chat_id'
 
-# TODO come up with better names for these
-TWITTER_CONNECTION_RESET_RETRY_SECONDS = 5
-TWITTER_DUPLICATE_CONNECTION_RETRY_SECONDS = 30
+TWITTER_CONNECTION_RESET_RETRY_DELAY = 5
+TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY = 60
 
 
 def load_config(config_file: str) -> dict:
@@ -182,9 +181,9 @@ def get_twitter_stream(twitter_stream):
         twitter_stream.get_stream()
     except ConnectionResetError:
         # connection broke for some reason, wait and retry
-        # TODO apply exponential backoff here
+        # TODO use exponential backoff here
         logging.info("Twitter Stream API connection reset... restarting")
-        time.sleep(TWITTER_CONNECTION_RESET_RETRY_SECONDS)
+        time.sleep(TWITTER_CONNECTION_RESET_RETRY_DELAY)
         get_twitter_stream(twitter_stream)
     except Exception as e:
         logging.error(e)
@@ -197,10 +196,10 @@ class TwitterStream(TwitterStreamAdapter):
 
         # stream is already running somewhere - this is usually because the
         # connection is still open from a previous run - wait and retry
-        # TODO apply exponential backoff here
+        # TODO use exponential backoff here
         if response.status_code == 429:
             logging.warning("Twitter Stream already running... wait and retry")
-            time.sleep(TWITTER_DUPLICATE_CONNECTION_RETRY_SECONDS)
+            time.sleep(TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY)
             self.get_stream()
         elif response.status_code != 200:
             raise Exception(f"Cannot get stream (HTTP {response.status_code}): {response.text}")
