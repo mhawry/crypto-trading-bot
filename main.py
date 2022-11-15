@@ -250,6 +250,11 @@ else:
     logging.warning("USING PRODUCTION CREDENTIALS")
     aws_secret_name = AWS_SECRET_NAME
 
+    # never skip rules when using production credentials
+    if args.skip_rules:
+        logging.warning("Overriding skip-rules")
+        args.skip_rules = False
+
 # preloading the config to save time when we're ready to trade
 config = load_config(CONFIG_FILE_PATH)
 try:
