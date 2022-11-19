@@ -306,8 +306,10 @@ def main():
         trade_config[symbol]['quantity_precision'] = binance.get_quantity_precision(symbol)
 
         rule = {
-            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID}',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+            # those two are kept here for testing
             # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
+            # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet -is:reply',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
