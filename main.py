@@ -66,7 +66,7 @@ def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
         get_secret_value_response = client.get_secret_value(
             SecretId=secret_name
         )
-    except ClientError as e:
+    except ClientError as e:  # noqa
         if e.response['Error']['Code'] == 'ResourceNotFoundException':
             logging.error(f"The requested secret {secret_name} was not found")
         elif e.response['Error']['Code'] == 'InvalidRequestException':
@@ -97,7 +97,7 @@ def launch_trade(pair: str) -> None:
     # extracting trading parameters from config
     try:
         leverage, allocation, limit_price_multiplier, stop_loss_multiplier, take_profit_activation_multiplier, take_profit_callback_rate, tick_size, quantity_precision = itemgetter('leverage', 'allocation', 'limit_price_multiplier', 'stop_loss_multiplier', 'take_profit_activation_multiplier', 'take_profit_callback_rate', 'tick_size', 'quantity_precision')(trade_config[pair])
-    except KeyError as e:
+    except KeyError as e:  # noqa
         logging.error(f"Missing key in config for {pair}: {e}")
         sys.exit()
 
@@ -128,7 +128,7 @@ def launch_trade(pair: str) -> None:
     try:
         order_id = binance.buy_limit(pair, quantity, limit_price)['orderId']
         order = binance.get_order(pair, order_id)
-    except Exception as e:
+    except Exception as e:  # noqa
         logging.error(e)
         telegram.send_message(telegram_chat_id, "WARNING buy order execution broke")  # notification in case the program crashes
         return
@@ -148,7 +148,7 @@ def launch_trade(pair: str) -> None:
     logging.info(f"Placing SELL STOP order for {quantity} {pair} at {stop_price}")
     try:
         order = binance.set_stop_loss(pair, quantity, stop_price)
-    except Exception as e:
+    except Exception as e:  # noqa
         logging.error(e)
         telegram.send_message(telegram_chat_id, "WARNING stop-loss order execution broke")  # notification in case the program crashes
         return
@@ -163,7 +163,7 @@ def launch_trade(pair: str) -> None:
     logging.info(f"Placing {take_profit_callback_rate}% TRAILING STOP order for {quantity} {pair} at {activation_price}")
     try:
         order = binance.set_trailing_stop(pair, quantity, activation_price, take_profit_callback_rate)
-    except Exception as e:
+    except Exception as e:  # noqa
         logging.error(e)
         telegram.send_message(telegram_chat_id, "WARNING trailing-stop order execution broke")  # notification in case the program crashes
         return
@@ -185,7 +185,7 @@ def get_twitter_stream(twitter_stream):
         logging.info("Twitter Stream API connection reset... restarting")
         time.sleep(TWITTER_CONNECTION_RESET_RETRY_DELAY)
         get_twitter_stream(twitter_stream)
-    except Exception as e:
+    except Exception as e:  # noqa
         logging.error(e)
         sys.exit()
 
