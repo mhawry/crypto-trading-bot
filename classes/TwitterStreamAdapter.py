@@ -4,10 +4,14 @@ import requests
 class TwitterStreamAdapter:
     """Twitter Stream API adapter"""
 
+    TWITTER_API_V2_STREAM_RULES_ENDPOINT = "https://api.twitter.com/2/tweets/search/stream/rules"
+
+    TWITTER_API_V2_STREAM_ENDPOINT = "https://api.twitter.com/2/tweets/search/stream?expansions=attachments.media_keys&media.fields=type,url"
+
     def __init__(self, bearer_token: str) -> None:
         self.bearer_token = bearer_token
 
-    def bearer_oauth(self, r: requests.models.PreparedRequest) -> requests.models.PreparedRequest:
+    def get_headers(self, r: requests.models.PreparedRequest) -> requests.models.PreparedRequest:
         """Method required by bearer token authentication.
 
         Returns
@@ -33,8 +37,8 @@ class TwitterStreamAdapter:
         Exception
             If the API won't return the rules (HTTP status code other than 200).
         """
-        response = requests.get(url="https://api.twitter.com/2/tweets/search/stream/rules",
-                                auth=self.bearer_oauth)
+        response = requests.get(url=self.TWITTER_API_V2_STREAM_RULES_ENDPOINT,
+                                auth=self.get_headers)
 
         if response.status_code != 200:
             raise Exception(f"Cannot get rules: {response.text} [{response.status_code}]")
@@ -59,8 +63,8 @@ class TwitterStreamAdapter:
 
         ids = list(map(lambda rule: rule['id'], rules['data']))
         payload = {'delete': {'ids': ids}}
-        response = requests.post(url="https://api.twitter.com/2/tweets/search/stream/rules",
-                                 auth=self.bearer_oauth,
+        response = requests.post(url=self.TWITTER_API_V2_STREAM_RULES_ENDPOINT,
+                                 auth=self.get_headers,
                                  json=payload)
 
         if response.status_code != 200:
@@ -80,8 +84,8 @@ class TwitterStreamAdapter:
             If the API won't add the rules (HTTP status code other than 201).
         """
         payload = {'add': rules}
-        response = requests.post(url="https://api.twitter.com/2/tweets/search/stream/rules",
-                                 auth=self.bearer_oauth,
+        response = requests.post(url=self.TWITTER_API_V2_STREAM_RULES_ENDPOINT,
+                                 auth=self.get_headers,
                                  json=payload)
 
         if response.status_code != 201:
@@ -95,8 +99,8 @@ class TwitterStreamAdapter:
         Exception
             If the API Filtered Stream won't start (HTTP status code other than 200).
         """
-        response = requests.get(url="https://api.twitter.com/2/tweets/search/stream?expansions=attachments.media_keys&media.fields=type,url",
-                                auth=self.bearer_oauth,
+        response = requests.get(url=self.TWITTER_API_V2_STREAM_ENDPOINT,
+                                auth=self.get_headers,
                                 stream=True)
 
         return response
