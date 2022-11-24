@@ -249,11 +249,12 @@ class TwitterStream(TwitterStreamAdapter):
 
                 # is there a Doge in the tweet?
                 doge_found = False
-                for media in json_response['includes']['media']:
-                    if media['type'] == 'photo':
-                        if image_contains_doge(media['url']):
-                            doge_found = True
-                            break
+                if 'includes' in json_response:
+                    for media in json_response['includes']['media']:
+                        if media['type'] == 'photo':
+                            if image_contains_doge(media['url']):
+                                doge_found = True
+                                break
 
                 if doge_found:
                     logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
@@ -353,11 +354,11 @@ def main():
         trade_config[symbol]['quantity_precision'] = binance.get_quantity_precision(symbol)
 
         rule = {
-            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+            # 'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet -is:reply',
             # those are kept here for testing
             # 'value': 'cat has:media -is:retweet -is:reply',
             # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
-            # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet -is:reply',
+            'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet -is:reply',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
