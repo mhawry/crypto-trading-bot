@@ -14,6 +14,7 @@ from botocore.exceptions import ClientError
 from classes.BinanceFuturesAdapter import BinanceFuturesAdapter
 from classes.TwitterStreamAdapter import TwitterStreamAdapter
 from classes.TelegramAdapter import TelegramAdapter
+from sagemaker.huggingface import HuggingFacePredictor
 
 ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
 
@@ -33,6 +34,12 @@ TELEGRAM_CHAT_ID_AWS_SECRET_KEY = 'telegram_chat_id'
 
 TWITTER_CONNECTION_RESET_RETRY_DELAY = 5
 TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY = 60
+
+# Huggingface model for Doge detection:
+# https://huggingface.co/domluna/vit-base-patch16-224-in21k-shiba-inu-detector
+HUGGINGFACE_MODEL_ENDPOINT = 'huggingface-pytorch-inference-2022-11-19-13-23-29-857'
+HUGGINGFACE_MODEL_DOGE_BREED_NAME = 'Shiba Inu Dog'
+HUGGINGFACE_MODEL_SCORE_THRESHOLD = 0.32
 
 
 def load_config(config_file: str) -> dict:
@@ -84,6 +91,28 @@ def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
             return json.loads(get_secret_value_response['SecretString'])
 
     return
+
+
+def image_contains_doge(img: str) -> bool:
+    """Checks whether an image contains a doge (Shiba Dog) or not
+
+    Parameters
+    ----------
+    img : str
+        URL of the image to analyse
+    """
+
+    logging.info(f"Checking if the following contains a Doge: {img}")
+
+    inference = huggingface_predictor.predict({'inputs': img})
+
+    logging.info(f"Inference results: {inference}")
+
+    # noinspection PyUnresolvedReferences
+    first_match = inference[0]
+
+    # we need the first match to be a Doge and its score to be over a certain threshold
+    return first_match['label'] == HUGGINGFACE_MODEL_DOGE_BREED_NAME and first_match['score'] >= HUGGINGFACE_MODEL_SCORE_THRESHOLD
 
 
 def launch_trade(pair: str) -> None:
@@ -216,14 +245,31 @@ class TwitterStream(TwitterStreamAdapter):
 
                 tweet = json_response['data']
 
-                # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
-                pair = json_response['matching_rules'][0]['tag']
+                logging.info(f"Analysing tweet {tweet['id']}")
 
-                logging.info(f"Tweet {tweet['id']} found for {pair} trading pair")
+                # is there a Doge in the tweet?
+                doge_found = False
+                for media in json_response['includes']['media']:
+                    if media['type'] == 'photo':
+                        if image_contains_doge(media['url']):
+                            doge_found = True
+                            break
 
-                thread = threading.Thread(target=launch_trade, args=(pair, ))
-                thread.start()
-                thread.join()
+                if doge_found:
+                    logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
+
+                    thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                    thread.start()
+                    thread.join()
+                else:
+                    # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
+                    pair = json_response['matching_rules'][0]['tag']
+
+                    logging.info(f"Tweet {tweet['id']} found for {pair} trading pair")
+
+                    thread = threading.Thread(target=launch_trade, args=(pair, ))
+                    thread.start()
+                    thread.join()
 
 
 # logging config with milliseconds (important)
@@ -292,6 +338,7 @@ except Exception as e:
     logging.error(f"Telegram API error: {e}")
     sys.exit()
 
+huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_ENDPOINT)
 
 # will be updated in main()
 margin_balance = 0.0
@@ -307,12 +354,18 @@ def main():
 
         rule = {
             'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet -is:reply',
-            # those two are kept here for testing
+            # those are kept here for testing
+            # 'value': 'cat has:media -is:retweet -is:reply',
             # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet',
             # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet -is:reply',
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
+
+    # special rule for tweets that contain a Doge
+    rules.append({
+        'value': f'has:media from:{ELON_TWITTER_ID} -is:retweet -is:reply'
+    })
 
     global margin_balance
     margin_balance = binance.get_margin_balance()

@@ -95,7 +95,7 @@ class TwitterStreamAdapter:
         Exception
             If the API Filtered Stream won't start (HTTP status code other than 200).
         """
-        response = requests.get(url="https://api.twitter.com/2/tweets/search/stream",
+        response = requests.get(url="https://api.twitter.com/2/tweets/search/stream?expansions=attachments.media_keys&media.fields=type,url",
                                 auth=self.bearer_oauth,
                                 stream=True)
 
