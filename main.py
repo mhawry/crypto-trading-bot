@@ -37,7 +37,7 @@ TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY = 60
 
 # Huggingface model for Doge detection:
 # https://huggingface.co/domluna/vit-base-patch16-224-in21k-shiba-inu-detector
-HUGGINGFACE_MODEL_ENDPOINT = 'huggingface-pytorch-inference-2022-11-19-13-23-29-857'
+HUGGINGFACE_MODEL_ENDPOINT = 'doge-detection-endpoint'
 HUGGINGFACE_MODEL_DOGE_BREED_NAME = 'Shiba Inu Dog'
 HUGGINGFACE_MODEL_SCORE_THRESHOLD = 0.32
 
