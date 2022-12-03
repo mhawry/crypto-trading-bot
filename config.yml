@@ -24,17 +24,17 @@ trading_pairs:
             keywords:
                 - bitcoin
                 - btc
-        ETHUSDT:
-            leverage: 100
-            allocation: 0.9
-#            max_position_size: 100000
-            limit_price_multiplier: 1.0005
-            stop_loss_multiplier: 0.995
-            take_profit_activation_multiplier: 1.025
-            take_profit_callback_rate: 0.5
-            keywords:
-                - ethereum
-                - eth
+#        ETHUSDT:
+#            leverage: 100
+#            allocation: 0.9
+##            max_position_size: 100000
+#            limit_price_multiplier: 1.0005
+#            stop_loss_multiplier: 0.995
+#            take_profit_activation_multiplier: 1.025
+#            take_profit_callback_rate: 0.5
+#            keywords:
+#                - ethereum
+#                - eth
     dev:
         DOGEUSDT:
             leverage: 20
@@ -58,14 +58,14 @@ trading_pairs:
             keywords:
                 - bitcoin
                 - btc
-        ETHUSDT:
-            leverage: 20
-            allocation: 0.9
-#            max_position_size: 1000000
-            limit_price_multiplier: 1.0005
-            stop_loss_multiplier: 0.995
-            take_profit_activation_multiplier: 1.025
-            take_profit_callback_rate: 0.5
-            keywords:
-                - ethereum
-                - eth
+#        ETHUSDT:
+#            leverage: 20
+#            allocation: 0.9
+##            max_position_size: 1000000
+#            limit_price_multiplier: 1.0005
+#            stop_loss_multiplier: 0.995
+#            take_profit_activation_multiplier: 1.025
+#            take_profit_callback_rate: 0.5
+#            keywords:
+#                - ethereum
+#                - eth
