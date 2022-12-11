@@ -32,9 +32,6 @@ TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY = 'twitter_api_bearer_token'
 TELEGRAM_API_TOKEN_AWS_SECRET_KEY = 'telegram_api_token'
 TELEGRAM_CHAT_ID_AWS_SECRET_KEY = 'telegram_chat_id'
 
-TWITTER_CONNECTION_RESET_RETRY_DELAY = 5
-TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY = 60
-
 # Huggingface model for Doge detection:
 # https://huggingface.co/domluna/vit-base-patch16-224-in21k-shiba-inu-detector
 HUGGINGFACE_MODEL_ENDPOINT = 'doge-detection-endpoint'
@@ -211,12 +208,6 @@ def launch_trade(pair: str) -> None:
 def get_twitter_stream(twitter_stream):
     try:
         twitter_stream.get_stream()
-    except ConnectionResetError:
-        # connection broke for some reason, wait and retry
-        # TODO use exponential backoff here
-        logging.info("Twitter Stream API connection reset... restarting")
-        time.sleep(TWITTER_CONNECTION_RESET_RETRY_DELAY)
-        get_twitter_stream(twitter_stream)
     except Exception as e:  # noqa
         logging.error(e)
         sys.exit()
@@ -226,24 +217,28 @@ class TwitterStream(TwitterStreamAdapter):
     def get_stream(self):
         response = super().get_stream()
 
-        # stream is already running somewhere - this is usually because the
-        # connection is still open from a previous run - wait and retry
-        # TODO use exponential backoff here
-        if response.status_code == 429:
-            logging.warning("Twitter Stream already running... wait and retry")
-            time.sleep(TWITTER_DUPLICATE_CONNECTION_RETRY_DELAY)
+        # stream has been disconnected, wait until it resets
+        if response.status_code == 104 or response.status_code == 429:
+            logging.warning(f"Twitter stream disconnected [{response.status_code}]: {response.text}")
+
+            # Twitter gives us the timestamp from which we'll be able to reconnect
+            reset = float(response.headers['x-rate-limit-reset'])
+            logging.info(f"Waiting until {reset}")
+            time.sleep(reset-time.time())
+
+            # we should be good to go now
             self.get_stream()
         elif response.status_code != 200:
-            raise Exception(f"Cannot get stream (HTTP {response.status_code}): {response.text}")
+            raise Exception(f"Unknown Twitter stream error [{response.status_code}]: {response.text}")
 
-        logging.info("Twitter Stream running successfully")
+        logging.info("Twitter stream running successfully")
 
         for response_line in response.iter_lines():
             if response_line:
                 json_response = json.loads(response_line)
 
                 if 'data' not in json_response:
-                    logging.warning(f"Invalid response from Twitter Stream API: {json_response}")
+                    logging.warning(f"Invalid response from Twitter stream API: {json_response}")
                     continue
 
                 tweet = json_response['data']
