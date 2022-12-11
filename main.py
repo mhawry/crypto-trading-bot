@@ -48,7 +48,7 @@ def load_config(config_file: str) -> dict:
         return yaml.load(config_file, Loader=yaml.FullLoader)
 
 
-def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
+def get_aws_secrets(secret_name: str, region_name: str, session: boto3.Session) -> dict or None:
     """Retrieves secrets from AWS Secrets Manager
 
     Parameters
@@ -57,13 +57,14 @@ def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
         The secret name to retrieve
     region_name : str
         The AWS region to use
+    session : boto3.Session
+        The AWS session to use
 
     Returns
     -------
     dict|None
         a dict containing the retrieved secrets, or None if they can't be retrieved
     """
-    session = boto3.session.Session()
     client = session.client(
         service_name='secretsmanager',
         region_name=region_name,
@@ -314,8 +315,10 @@ except KeyError as e:
     logging.error(f"Error loading config: {e}")
     sys.exit()
 
+aws_session = boto3.session.Session()
+
 try:
-    aws_secrets = get_aws_secrets(aws_secret_name, AWS_REGION)
+    aws_secrets = get_aws_secrets(aws_secret_name, AWS_REGION, aws_session)
 except Exception as e:
     logging.error(f"Unable to pull secrets from AWS Secrets Manager: {e}")
     sys.exit()
@@ -343,7 +346,7 @@ except Exception as e:
     logging.error(f"Telegram API error: {e}")
     sys.exit()
 
-huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_ENDPOINT)
+huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_ENDPOINT, sagemaker_session=aws_session)
 
 # will be updated in main()
 margin_balance = 0.0
