@@ -41,6 +41,9 @@ HUGGINGFACE_MODEL_ENDPOINT = 'doge-detection-endpoint'
 HUGGINGFACE_MODEL_DOGE_BREED_NAME = 'Shiba Inu Dog'
 HUGGINGFACE_MODEL_SCORE_THRESHOLD = 0.32
 
+DEV_ONLY_RULE_TAG = 'dev-only'  # used to tag rules for testing
+HAS_MEDIA_RULE_TAG = 'has-media'  # to use with rules that contain media
+
 
 def load_config(config_file: str) -> dict:
     """Loads yaml config"""
@@ -245,32 +248,38 @@ class TwitterStream(TwitterStreamAdapter):
 
                 tweet = json_response['data']
 
-                logging.info(f"Analysing tweet {tweet['id']}")
+                # if a tweet mentions more than one trading pair we need to pick only one, hence using 0 as the index
+                tag = json_response['matching_rules'][0]['tag']
 
-                # is there a Doge in the tweet?
-                doge_found = False
-                if 'includes' in json_response and 'tag' not in json_response['matching_rules'][0]:
+                logging.info(f"Analysing tweet {tweet['id']} with tag {tag}")
+
+                if tag == DEV_ONLY_RULE_TAG:
+                    logging.info(f"Tweet {tweet['id']} tagged as dev only, skipping")
+                    continue
+
+                if tag != HAS_MEDIA_RULE_TAG:
+                    # at this stage the tag will be a trading pair
+                    logging.info(f"Tweet {tweet['id']} found for {tag} trading pair")
+
+                    thread = threading.Thread(target=launch_trade, args=(tag, ))
+                    thread.start()
+                    thread.join()
+
+                # special use case for when there is a tweet with a Doge
+                if tag == HAS_MEDIA_RULE_TAG and 'includes' in json_response:
+                    doge_found = False
                     for media in json_response['includes']['media']:
                         if media['type'] == 'photo':
                             if image_contains_doge(media['url']):
                                 doge_found = True
                                 break
 
-                if doge_found:
-                    logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
+                    if doge_found:
+                        logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
 
-                    thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
-                    thread.start()
-                    thread.join()
-                else:
-                    # if a tweet mentions more than one trading pair this will only pick one (we only have enough $ for one trade anyway)
-                    pair = json_response['matching_rules'][0]['tag']
-
-                    logging.info(f"Tweet {tweet['id']} found for {pair} trading pair")
-
-                    thread = threading.Thread(target=launch_trade, args=(pair, ))
-                    thread.start()
-                    thread.join()
+                        thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                        thread.start()
+                        thread.join()
 
 
 # logging config with milliseconds (important)
@@ -363,8 +372,15 @@ def main():
 
     # special rule for tweets that contain a Doge
     rules.append({
-        'value': f'has:media from:{ELON_TWITTER_ID} -is:retweet -is:reply'
+        'value': f'has:media from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+        'tag': HAS_MEDIA_RULE_TAG
     })
+
+    # for testing
+    # rules.append({
+    #     'value': f'bitcoin -from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+    #     'tag': DEV_ONLY_RULE_TAG
+    # })
 
     global margin_balance
     margin_balance = binance.get_margin_balance()
