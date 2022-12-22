@@ -1,9 +1,9 @@
-FROM python:3.8-slim-buster
+FROM python:3.10-slim-buster
 
 WORKDIR /usr/src/app
 
 COPY requirements.txt /tmp/
-RUN pip install --requirement /tmp/requirements.txt
+RUN pip install --requirement /tmp/requirements.txt --root-user-action=ignore
 
 COPY . .
 
