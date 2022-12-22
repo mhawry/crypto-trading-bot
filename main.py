@@ -161,7 +161,7 @@ def launch_trade(pair: str) -> None:
         order = binance.get_order(pair, order_id)
     except Exception as e:  # noqa
         logging.error(e)
-        telegram.send_message(telegram_chat_id, "WARNING buy order execution broke")  # notification in case the program crashes
+        telegram.send_message("WARNING buy order execution broke")  # notification in case the program crashes
         return
 
     # making sure the order is filled before we move on to the stop orders
@@ -181,7 +181,7 @@ def launch_trade(pair: str) -> None:
         order = binance.set_stop_loss(pair, quantity, stop_price)
     except Exception as e:  # noqa
         logging.error(e)
-        telegram.send_message(telegram_chat_id, "WARNING stop-loss order execution broke")  # notification in case the program crashes
+        telegram.send_message("WARNING stop-loss order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
@@ -196,7 +196,7 @@ def launch_trade(pair: str) -> None:
         order = binance.set_trailing_stop(pair, quantity, activation_price, take_profit_callback_rate)
     except Exception as e:  # noqa
         logging.error(e)
-        telegram.send_message(telegram_chat_id, "WARNING trailing-stop order execution broke")  # notification in case the program crashes
+        telegram.send_message("WARNING trailing-stop order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
@@ -204,7 +204,7 @@ def launch_trade(pair: str) -> None:
     else:
         logging.error(f"TRAILING STOP order #{order['orderId']} has NOT been placed: {order}")
 
-    telegram.send_message(telegram_chat_id, f"Bough {quantity} {pair} at {buy_order_limit_price}")
+    telegram.send_message(f"Bough {quantity} {pair} at {buy_order_limit_price}")
 
 
 class TwitterStream(TwitterStreamAdapter):
@@ -337,7 +337,7 @@ except BinanceAPIException as e:
     sys.exit()
 
 try:
-    telegram = TelegramAdapter(token=telegram_api_token)
+    telegram = TelegramAdapter(token=telegram_api_token, chat_id=telegram_chat_id)
 except Exception as e:
     logging.error(f"Telegram API error: {e}")
     sys.exit()
