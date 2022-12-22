@@ -216,7 +216,7 @@ class TwitterStream(TwitterStreamAdapter):
                     logging.warning(f"Twitter stream disconnected [{response.status_code}]: {response.text or response.reason}")
 
                     # Twitter gives us the timestamp from which we'll be able to reconnect
-                    reset = float(response.headers['x-rate-limit-reset'])+1
+                    reset = int(response.headers['x-rate-limit-reset'])+1
                     logging.info(f"Waiting until {reset}")
                     time.sleep(reset-time.time())
 
