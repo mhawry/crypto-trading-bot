@@ -154,14 +154,16 @@ def launch_trade(pair: str) -> None:
     # using the current ask price times a multiplier as the limit price
     limit_price = round_step_size(binance.get_ask_price(pair)*limit_price_multiplier, tick_size)
 
+    telegram.send_message(f"Buying {quantity} {pair} at {limit_price}")
+
     logging.info(f"Placing BUY LIMIT order for {quantity} {pair} at {limit_price}")
 
     try:
         order_id = binance.buy_limit(pair, quantity, limit_price)['orderId']
         order = binance.get_order(pair, order_id)
     except Exception as e:  # noqa
+        telegram.send_message("BUY LIMIT order execution exception, see logs for details")
         logging.error(e)
-        telegram.send_message("WARNING buy order execution broke")  # notification in case the program crashes
         return
 
     # making sure the order is filled before we move on to the stop orders
@@ -180,14 +182,14 @@ def launch_trade(pair: str) -> None:
     try:
         order = binance.set_stop_loss(pair, quantity, stop_price)
     except Exception as e:  # noqa
+        telegram.send_message("SELL STOP order execution exception, see logs for details")
         logging.error(e)
-        telegram.send_message("WARNING stop-loss order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
         logging.info(f"SELL STOP order #{order['orderId']} placed at {order['stopPrice']}")
     else:
-        logging.error(f"SELL STOP #{order['orderId']} has NOT been placed: {order}")
+        logging.error(f"SELL STOP order #{order['orderId']} has NOT been placed: {order}")
 
     # trailing-stop
     activation_price = round_step_size(filled_price*take_profit_activation_multiplier, tick_size)
@@ -195,8 +197,8 @@ def launch_trade(pair: str) -> None:
     try:
         order = binance.set_trailing_stop(pair, quantity, activation_price, take_profit_callback_rate)
     except Exception as e:  # noqa
+        telegram.send_message("TRAILING STOP order execution exception, see logs for details")
         logging.error(e)
-        telegram.send_message("WARNING trailing-stop order execution broke")  # notification in case the program crashes
         return
 
     if order['status'] == ORDER_STATUS_NEW:
@@ -204,7 +206,7 @@ def launch_trade(pair: str) -> None:
     else:
         logging.error(f"TRAILING STOP order #{order['orderId']} has NOT been placed: {order}")
 
-    telegram.send_message(f"Bough {quantity} {pair} at {buy_order_limit_price}")
+    telegram.send_message(f"Bought {quantity} {pair} at {buy_order_limit_price}")
 
 
 class TwitterStream(TwitterStreamAdapter):
@@ -248,7 +250,9 @@ class TwitterStream(TwitterStreamAdapter):
 
                         if tag != HAS_MEDIA_RULE_TAG:
                             # at this stage the tag will be a trading pair
-                            logging.info(f"Tweet {tweet['id']} found for {tag} trading pair")
+                            telegram.send_message(f"Triggering trade for {tag} based on tweet id {tweet['id']}")
+
+                            logging.info(f"Tweet id {tweet['id']} found for {tag} trading pair")
 
                             thread = threading.Thread(target=launch_trade, args=(tag, ))
                             thread.start()
@@ -264,7 +268,9 @@ class TwitterStream(TwitterStreamAdapter):
                                         break
 
                             if doge_found:
-                                logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
+                                telegram.send_message(f"Triggering DOGE trade based on media from tweet id {tweet['id']}")
+
+                                logging.info(f"Tweet id {tweet['id']} contains a Doge, launching trade")
 
                                 thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
                                 thread.start()
@@ -391,6 +397,8 @@ def main():
         logging.info("New rules have been set")
     else:
         logging.warning("Using existing Twitter rules")
+
+    telegram.send_message(f"Program running successfully. Margin balance: ${margin_balance}")
 
     logging.info("Starting Twitter stream")
 
