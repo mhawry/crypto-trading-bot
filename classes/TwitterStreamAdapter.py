@@ -25,7 +25,7 @@ class TwitterStreamAdapter:
         return r
 
     def get_rules(self) -> dict:
-        """Get existing rules for the Filtered Stream Twitter API
+        """Get existing rules for the Filtered stream Twitter API
 
         Returns
         -------
@@ -46,7 +46,7 @@ class TwitterStreamAdapter:
         return response.json()
 
     def delete_all_rules(self, rules: dict) -> None:
-        """Get existing rules for the Filtered Stream Twitter API
+        """Get existing rules for the Filtered stream Twitter API
 
         Parameters
         ----------
@@ -71,7 +71,7 @@ class TwitterStreamAdapter:
             raise Exception(f"Cannot delete rules: {response.text} [{response.status_code}]")
 
     def add_rules(self, rules: list) -> None:
-        """Add rules for the Filtered Stream Twitter API
+        """Add rules for the Filtered stream Twitter API
 
         Parameters
         ----------
@@ -92,13 +92,7 @@ class TwitterStreamAdapter:
             raise Exception(f"Cannot add rules: {response.text} [{response.status_code}]")
 
     def get_stream(self):
-        """Start the Filtered API stream
-
-        Raises
-        ------
-        Exception
-            If the API Filtered Stream won't start (HTTP status code other than 200).
-        """
+        """Start the API stream"""
         response = requests.get(url=self.TWITTER_API_V2_STREAM_ENDPOINT,
                                 auth=self.get_headers,
                                 stream=True)
