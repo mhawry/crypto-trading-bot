@@ -90,11 +90,3 @@ class TwitterStreamAdapter:
 
         if response.status_code != 201:
             raise Exception(f"Cannot add rules: {response.text} [{response.status_code}]")
-
-    def get_stream(self):
-        """Start the API stream"""
-        response = requests.get(url=self.TWITTER_API_V2_STREAM_ENDPOINT,
-                                auth=self.get_headers,
-                                stream=True)
-
-        return response

@@ -209,65 +209,69 @@ def launch_trade(pair: str) -> None:
 
 class TwitterStream(TwitterStreamAdapter):
     def get_stream(self):
-        with requests.get(url=self.TWITTER_API_V2_STREAM_ENDPOINT, auth=self.get_headers, stream=True) as response:
-            # stream has been disconnected, wait until it resets
-            if response.status_code == 429:
-                logging.warning(f"Twitter stream disconnected [{response.status_code}]: {response.text or response.reason}")
+        try:
+            with requests.get(url=self.TWITTER_API_V2_STREAM_ENDPOINT, auth=self.get_headers, stream=True) as response:
+                # stream has been disconnected, wait until it resets
+                if response.status_code == 429:
+                    logging.warning(f"Twitter stream disconnected [{response.status_code}]: {response.text or response.reason}")
 
-                # Twitter gives us the timestamp from which we'll be able to reconnect
-                reset = float(response.headers['x-rate-limit-reset'])+1
-                logging.info(f"Waiting until {reset}")
-                time.sleep(reset-time.time())
+                    # Twitter gives us the timestamp from which we'll be able to reconnect
+                    reset = float(response.headers['x-rate-limit-reset'])+1
+                    logging.info(f"Waiting until {reset}")
+                    time.sleep(reset-time.time())
 
-                # we should be good to go now
-                self.get_stream()
-            elif response.status_code != 200:
-                raise Exception(f"Unknown Twitter stream error [{response.status_code}]: {response.text}")
+                    # we should be good to go now
+                    self.get_stream()
+                elif response.status_code != 200:
+                    raise Exception(f"Unknown Twitter stream error [{response.status_code}]: {response.text}")
 
-            logging.info("Twitter stream running successfully")
+                logging.info("Twitter stream running successfully")
 
-            for response_line in response.iter_lines():
-                if response_line:
-                    json_response = json.loads(response_line)
+                for response_line in response.iter_lines():
+                    if response_line:
+                        json_response = json.loads(response_line)
 
-                    if 'data' not in json_response:
-                        logging.warning(f"Invalid response from Twitter stream API: {json_response}")
-                        continue
+                        if 'data' not in json_response:
+                            logging.warning(f"Invalid response from Twitter stream API: {json_response}")
+                            continue
 
-                    tweet = json_response['data']
+                        tweet = json_response['data']
 
-                    # if a tweet mentions more than one trading pair we need to pick only one, hence using 0 as the index
-                    tag = json_response['matching_rules'][0]['tag']
+                        # if a tweet mentions more than one trading pair we need to pick only one, hence using 0 as the index
+                        tag = json_response['matching_rules'][0]['tag']
 
-                    logging.info(f"Analysing tweet {tweet['id']} with tag {tag}")
+                        logging.info(f"Analysing tweet {tweet['id']} with tag {tag}")
 
-                    if tag == DEV_ONLY_RULE_TAG:
-                        logging.info(f"Tweet {tweet['id']} tagged as dev only, skipping")
-                        continue
+                        if tag == DEV_ONLY_RULE_TAG:
+                            logging.info(f"Tweet {tweet['id']} tagged as dev only, skipping")
+                            continue
 
-                    if tag != HAS_MEDIA_RULE_TAG:
-                        # at this stage the tag will be a trading pair
-                        logging.info(f"Tweet {tweet['id']} found for {tag} trading pair")
+                        if tag != HAS_MEDIA_RULE_TAG:
+                            # at this stage the tag will be a trading pair
+                            logging.info(f"Tweet {tweet['id']} found for {tag} trading pair")
 
-                        thread = threading.Thread(target=launch_trade, args=(tag, ))
-                        thread.start()
-                        thread.join()
-
-                    # special use case for when there is a tweet with a Doge
-                    if tag == HAS_MEDIA_RULE_TAG and 'includes' in json_response:
-                        doge_found = False
-                        for media in json_response['includes']['media']:
-                            if media['type'] == 'photo':
-                                if image_contains_doge(media['url']):
-                                    doge_found = True
-                                    break
-
-                        if doge_found:
-                            logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
-
-                            thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                            thread = threading.Thread(target=launch_trade, args=(tag, ))
                             thread.start()
                             thread.join()
+
+                        # special use case for when there is a tweet with a Doge
+                        if tag == HAS_MEDIA_RULE_TAG and 'includes' in json_response:
+                            doge_found = False
+                            for media in json_response['includes']['media']:
+                                if media['type'] == 'photo':
+                                    if image_contains_doge(media['url']):
+                                        doge_found = True
+                                        break
+
+                            if doge_found:
+                                logging.info(f"Tweet {tweet['id']} contains a Doge, launching trade")
+
+                                thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                                thread.start()
+                                thread.join()
+        except Exception as e:  # noqa
+            logging.error(e)
+            self.get_stream()
 
 
 # logging config with milliseconds (important)
