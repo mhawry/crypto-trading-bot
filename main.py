@@ -399,7 +399,7 @@ def main():
     else:
         logging.warning("Using existing Twitter rules")
 
-    telegram.send_message(f"Program running successfully. Margin balance: ${margin_balance}")
+    telegram.send_message(f"Program running successfully. Margin balance: ${round(margin_balance, 2)}")
 
     logging.info("Starting Twitter stream")
 

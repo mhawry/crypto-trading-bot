@@ -39,9 +39,9 @@ class BinanceFuturesAdapter:
             if symbol_info['symbol'] == symbol:
                 return symbol_info['quantityPrecision']
 
-    def get_margin_balance(self) -> dict:
+    def get_margin_balance(self) -> float:
         """Returns the margin balance in the account"""
-        return self.client.futures_account()['totalMarginBalance']
+        return float(self.client.futures_account()['totalMarginBalance'])
 
     def get_position_information(self, symbol: str) -> dict:
         """Returns position information on a given symbol"""
