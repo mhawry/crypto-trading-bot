@@ -277,6 +277,7 @@ class TwitterStream(TwitterStreamAdapter):
                                 thread.join()
         except Exception as e:  # noqa
             logging.error(e)
+            response.close()
             self.get_stream()
 
 
