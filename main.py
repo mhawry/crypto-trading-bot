@@ -229,55 +229,62 @@ class TwitterStream(TwitterStreamAdapter):
 
                 logging.info("Twitter stream running successfully")
 
-                for response_line in response.iter_lines():
-                    if response_line:
-                        json_response = json.loads(response_line)
-
-                        if 'data' not in json_response:
-                            logging.warning(f"Invalid response from Twitter stream API: {json_response}")
+                try:
+                    for response_line in response.iter_lines(decode_unicode=True):
+                        # Twitter sends a keep alive heartbeat every 20 seconds
+                        if response_line == b'':
                             continue
 
-                        tweet = json_response['data']
+                        if response_line:
+                            json_response = json.loads(response_line)
 
-                        # if a tweet mentions more than one trading pair we need to pick only one, hence using 0 as the index
-                        tag = json_response['matching_rules'][0]['tag']
+                            if 'data' not in json_response:
+                                logging.warning(f"Invalid response from Twitter stream API: {json_response}")
+                                continue
 
-                        logging.info(f"Analysing tweet {tweet['id']} with tag {tag}")
+                            tweet = json_response['data']
 
-                        if tag == DEV_ONLY_RULE_TAG:
-                            logging.info(f"Tweet {tweet['id']} tagged as dev only, skipping")
-                            continue
+                            # if a tweet mentions more than one trading pair we need to pick only one, hence using 0 as the index
+                            tag = json_response['matching_rules'][0]['tag']
 
-                        if tag != HAS_MEDIA_RULE_TAG:
-                            # at this stage the tag will be a trading pair
-                            telegram.send_message(f"Triggering trade for {tag} based on tweet id {tweet['id']}")
+                            logging.info(f"Analysing tweet {tweet['id']} with tag {tag}")
 
-                            logging.info(f"Tweet id {tweet['id']} found for {tag} trading pair")
+                            if tag == DEV_ONLY_RULE_TAG:
+                                logging.info(f"Tweet {tweet['id']} tagged as dev only, skipping")
+                                continue
 
-                            thread = threading.Thread(target=launch_trade, args=(tag, ))
-                            thread.start()
-                            thread.join()
+                            if tag != HAS_MEDIA_RULE_TAG:
+                                # at this stage the tag will be a trading pair
+                                telegram.send_message(f"Triggering trade for {tag} based on tweet id {tweet['id']}")
 
-                        # special use case for when there is a tweet with a Doge
-                        if tag == HAS_MEDIA_RULE_TAG and 'includes' in json_response:
-                            doge_found = False
-                            for media in json_response['includes']['media']:
-                                if media['type'] == 'photo':
-                                    if image_contains_doge(media['url']):
-                                        doge_found = True
-                                        break
+                                logging.info(f"Tweet id {tweet['id']} found for {tag} trading pair")
 
-                            if doge_found:
-                                telegram.send_message(f"Triggering DOGE trade based on media from tweet id {tweet['id']}")
-
-                                logging.info(f"Tweet id {tweet['id']} contains a Doge, launching trade")
-
-                                thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                                thread = threading.Thread(target=launch_trade, args=(tag, ))
                                 thread.start()
                                 thread.join()
+
+                            # special use case for when there is a tweet with a Doge
+                            if tag == HAS_MEDIA_RULE_TAG and 'includes' in json_response:
+                                doge_found = False
+                                for media in json_response['includes']['media']:
+                                    if media['type'] == 'photo':
+                                        if image_contains_doge(media['url']):
+                                            doge_found = True
+                                            break
+
+                                if doge_found:
+                                    telegram.send_message(f"Triggering DOGE trade based on media from tweet id {tweet['id']}")
+
+                                    logging.info(f"Tweet id {tweet['id']} contains a Doge, launching trade")
+
+                                    thread = threading.Thread(target=launch_trade, args=('DOGEUSDT', ))
+                                    thread.start()
+                                    thread.join()
+                except Exception as e:  # noqa
+                    response.close()
+                    raise Exception(e)
         except Exception as e:  # noqa
             logging.error(e)
-            response.close()
             self.get_stream()
 
 
