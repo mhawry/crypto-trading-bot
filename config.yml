@@ -6,7 +6,7 @@ trading_pairs:
             leverage: 25
             allocation: 0.9
 #            max_position_size: 50000
-            limit_price_multiplier: 1.0005
+            limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
@@ -17,7 +17,7 @@ trading_pairs:
             leverage: 125
             allocation: 0.9
 #            max_position_size: 50000
-            limit_price_multiplier: 1.0005
+            limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
@@ -40,7 +40,7 @@ trading_pairs:
             leverage: 20
             allocation: 0.9
 #            max_position_size: 25000
-            limit_price_multiplier: 1.0005
+            limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
@@ -51,7 +51,7 @@ trading_pairs:
             leverage: 25
             allocation: 0.9
 #            max_position_size: 1000000
-            limit_price_multiplier: 1.0005
+            limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
