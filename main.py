@@ -58,8 +58,6 @@ def get_aws_secrets(secret_name: str, region_name: str) -> dict or None:
         The secret name to retrieve
     region_name : str
         The AWS region to use
-    session : boto3.Session
-        The AWS session to use
 
     Returns
     -------
