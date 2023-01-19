@@ -133,7 +133,9 @@ def launch_trade(pair: str) -> None:
         logging.error(f"Missing key in config for {pair}: {e}")
         sys.exit()
 
-    logging.info(f"Launching trade for {pair}")
+    margin_balance = binance.get_margin_balance()
+
+    logging.info(f"Launching trade for {pair}. Margin balance: ${round(margin_balance, 2)}.")
 
     position_info = binance.get_position_information(pair)
 
@@ -357,9 +359,6 @@ except Exception as e:
 
 huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_ENDPOINT)
 
-# will be updated in main()
-margin_balance = 0.0
-
 
 def main():
     rules = []
@@ -389,9 +388,6 @@ def main():
     #     'tag': DEV_ONLY_RULE_TAG
     # })
 
-    global margin_balance
-    margin_balance = binance.get_margin_balance()
-
     twitter_stream = TwitterStream(twitter_api_bearer_token)
 
     if args.skip_rules is False:
@@ -405,7 +401,7 @@ def main():
     else:
         logging.warning("Using existing Twitter rules")
 
-    telegram.send_message(f"Program running successfully. Margin balance: ${round(margin_balance, 2)}")
+    telegram.send_message(f"Program running successfully")
 
     logging.info("Starting Twitter stream")
 
