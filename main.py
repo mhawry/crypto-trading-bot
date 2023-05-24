@@ -23,8 +23,7 @@ CONFIG_FILE_PATH = 'config.yml'
 
 # AWS config
 AWS_REGION = 'ap-northeast-1'
-AWS_SECRET_NAME = 'WinterBermApiKeys'
-AWS_SECRET_NAME_DEV = 'WinterBermApiKeys-dev'
+AWS_SECRET_KEY = 'CryptoTradingBotApiKeys'
 
 # AWS keys from Secrets Manager
 BINANCE_API_KEY_AWS_SECRET_KEY = 'binance_api_key'
@@ -308,10 +307,10 @@ args = parser.parse_args()
 
 if args.dry_run:
     logging.info("Using test credentials")
-    aws_secret_name = AWS_SECRET_NAME_DEV
+    aws_secret_name = f"dev/{AWS_SECRET_KEY}"
 else:
     logging.warning("USING PRODUCTION CREDENTIALS")
-    aws_secret_name = AWS_SECRET_NAME
+    aws_secret_name = f"prod/{AWS_SECRET_KEY}"
 
     # never skip rules when using production credentials
     if args.skip_rules:
