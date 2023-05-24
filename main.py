@@ -17,8 +17,6 @@ from classes.TwitterStreamAdapter import TwitterStreamAdapter
 from classes.TelegramAdapter import TelegramAdapter
 from sagemaker.huggingface import HuggingFacePredictor
 
-ELON_TWITTER_ID = 44196397  # Elon Musk's twitter id (will never change)
-
 CONFIG_FILE_PATH = 'config.yml'
 
 # AWS config
@@ -295,7 +293,7 @@ logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(message)s',
 
 logging.info("Program started")
 
-parser = argparse.ArgumentParser(description="Trigger crypto trades based on Elon Musk's tweets")
+parser = argparse.ArgumentParser(description="Trigger crypto trades based on tweets from supplied list of account ids")
 parser.add_argument('--dry-run',
                     action='store_true',
                     help="Use Binance testnet")
@@ -359,29 +357,32 @@ huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_END
 
 def main():
     rules = []
+
+    accounts = ' OR '.join(['from:' + str(account) for account in config['accounts']])
+
     for symbol, pair_config in trade_config.items():
         # we're pulling the tick size here and adding it to the local config
         # this improves latency by "saving" an API call before placing the orders
         trade_config[symbol]['tick_size'] = binance.get_tick_size(symbol)
         trade_config[symbol]['quantity_precision'] = binance.get_quantity_precision(symbol)
 
+        keywords = ' OR '.join(pair_config['keywords'])
+
         rule = {
-            'value': '(' + ' OR '.join(pair_config['keywords']) + f') from:{ELON_TWITTER_ID} -is:retweet -is:reply',
-            # for testing
-            # 'value': '(' + ' OR '.join(pair_config['keywords']) + ') -is:retweet -is:reply',
+            'value': f"({keywords}) ({accounts}) -is:retweet -is:reply",
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
 
     # special rule for tweets that contain a Doge
     rules.append({
-        'value': f'has:media from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+        'value': f"has:media ({accounts}) -is:retweet -is:reply",
         'tag': HAS_MEDIA_RULE_TAG
     })
 
     # for testing
     # rules.append({
-    #     'value': f'bitcoin -from:{ELON_TWITTER_ID} -is:retweet -is:reply',
+    #     'value': f"bitcoin ({accounts}) -is:retweet -is:reply",
     #     'tag': DEV_ONLY_RULE_TAG
     # })
 

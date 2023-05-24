@@ -1,5 +1,9 @@
 ---
-# Trading pairs - symbol must match what Binance uses
+# Twitter account ids to use for triggering trades
+accounts:
+    - 44196397
+    - 13298072
+# Trading pairs - symbols must match what Binance uses
 trading_pairs:
     prod:
         DOGEUSDT:
