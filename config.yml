@@ -1,69 +1,81 @@
 ---
-# Twitter account ids to use for triggering trades
-accounts:
-    - 44196397
-    - 13298072
 # Trading pairs - symbols must match what Binance uses
 trading_pairs:
     prod:
         BTCUSDT:
+            twitter_ids:
+                - 44196397
+                - 13298072
+            keywords:
+                - bitcoin
+                - btc
             leverage: 125
             allocation: 0.9
             limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
-            keywords:
-                - bitcoin
-                - btc
         ETHUSDT:
+            twitter_ids:
+                - 295218901
+            keywords:
+                - ethereum
+                - eth
             leverage: 100
             allocation: 0.9
             limit_price_multiplier: 1.0005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
-            keywords:
-                - ethereum
-                - eth
         DOGEUSDT:
-            leverage: 25
-            allocation: 0.9
-            limit_price_multiplier: 1.005
-            stop_loss_multiplier: 0.995
-            take_profit_activation_multiplier: 1.025
-            take_profit_callback_rate: 0.5
+            twitter_ids:
+                - 44196397
+                - 13298072
             keywords:
                 - dogecoin
                 - doge
-    dev:
-        BTCUSDT:
             leverage: 25
             allocation: 0.9
             limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
+    dev:
+        BTCUSDT:
+            twitter_ids:
+                - 44196397
+                - 13298072
             keywords:
                 - bitcoin
                 - btc
+            leverage: 25
+            allocation: 0.9
+            limit_price_multiplier: 1.005
+            stop_loss_multiplier: 0.995
+            take_profit_activation_multiplier: 1.025
+            take_profit_callback_rate: 0.5
         ETHUSDT:
+            twitter_ids:
+                - 295218901
+            keywords:
+                - ethereum
+                - eth
             leverage: 20
             allocation: 0.9
             limit_price_multiplier: 1.0005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
-            keywords:
-                - ethereum
-                - eth
         DOGEUSDT:
+            twitter_ids:
+                - 44196397
+                - 13298072
+            keywords:
+                - dogecoin
+                - doge
             leverage: 20
             allocation: 0.9
             limit_price_multiplier: 1.005
             stop_loss_multiplier: 0.995
             take_profit_activation_multiplier: 1.025
             take_profit_callback_rate: 0.5
-            keywords:
-                - dogecoin
-                - doge

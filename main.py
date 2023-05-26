@@ -30,6 +30,8 @@ TWITTER_API_BEARER_TOKEN_AWS_SECRET_KEY = 'twitter_api_bearer_token'
 TELEGRAM_API_TOKEN_AWS_SECRET_KEY = 'telegram_api_token'
 TELEGRAM_CHAT_ID_AWS_SECRET_KEY = 'telegram_chat_id'
 
+DOGE_PAIR = 'DOGEUSDT'
+
 # Huggingface model for Doge detection:
 # https://huggingface.co/domluna/vit-base-patch16-224-in21k-shiba-inu-detector
 HUGGINGFACE_MODEL_ENDPOINT = 'doge-detection-endpoint'
@@ -357,9 +359,6 @@ huggingface_predictor = HuggingFacePredictor(endpoint_name=HUGGINGFACE_MODEL_END
 
 def main():
     rules = []
-
-    accounts = ' OR '.join(['from:' + str(account) for account in config['accounts']])
-
     for symbol, pair_config in trade_config.items():
         # we're pulling the tick size here and adding it to the local config
         # this improves latency by "saving" an API call before placing the orders
@@ -367,18 +366,20 @@ def main():
         trade_config[symbol]['quantity_precision'] = binance.get_quantity_precision(symbol)
 
         keywords = ' OR '.join(pair_config['keywords'])
+        twitter_ids = ' OR '.join(['from:' + str(twitter_id) for twitter_id in pair_config['twitter_ids']])
 
         rule = {
-            'value': f"({keywords}) ({accounts}) -is:retweet -is:reply",
+            'value': f"({keywords}) ({twitter_ids}) -is:retweet -is:reply",
             'tag': symbol  # we'll use the symbol as a tag, this way we'll know which symbol triggered the trade
         }
         rules.append(rule)
 
-    # special rule for tweets that contain a Doge
-    rules.append({
-        'value': f"has:media ({accounts}) -is:retweet -is:reply",
-        'tag': HAS_MEDIA_RULE_TAG
-    })
+        # special rule for tweets that contain a Doge
+        if symbol == DOGE_PAIR:
+            rules.append({
+                'value': f"has:media ({twitter_ids}) -is:retweet -is:reply",
+                'tag': HAS_MEDIA_RULE_TAG
+            })
 
     # for testing
     # rules.append({
