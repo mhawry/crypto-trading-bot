@@ -58,13 +58,6 @@ class BinanceFuturesAdapter:
         """Gets the current ask price for a given symbol"""
         return float(self.client.futures_orderbook_ticker(symbol=symbol)['askPrice'])
 
-    def get_open_orders(self, symbol: str) -> dict:
-        """Returns current open orders on a given symbol
-
-        TODO this isn't used - we may look into removing it
-        """
-        return self.client.futures_get_open_orders(symbol=symbol)
-
     def get_order(self, symbol: str, order_id: int) -> dict:
         """Returns order information on a given symbol and order id
 
