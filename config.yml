@@ -1,6 +1,5 @@
 ---
-# Trading pairs - symbols must match what Binance uses
-trading_pairs:
+symbols:
     prod:
         BTCUSDT:
             twitter_ids:

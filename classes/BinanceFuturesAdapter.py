@@ -11,18 +11,18 @@ class BinanceFuturesAdapter:
         self.set_one_way_position_mode()
 
     def set_one_way_position_mode(self) -> None:
-        """Sets position mode to one-way"""
+        """Set the position mode to one-way."""
         current_position_mode = self.client.futures_get_position_mode()
 
         if current_position_mode['dualSidePosition']:
             self.client.futures_change_position_mode(dualSidePosition=False)
 
     def set_leverage(self, symbol: str, leverage: int) -> dict:
-        """Sets the leverage to use for a given symbol"""
+        """Set the leverage for a given symbol."""
         return self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
     def get_tick_size(self, symbol: str) -> float:
-        """Gets the tick size for a given symbol"""
+        """Get the tick size for a given symbol."""
         info = self.client.futures_exchange_info()
 
         for symbol_info in info['symbols']:
@@ -32,7 +32,7 @@ class BinanceFuturesAdapter:
                         return float(symbol_filter['tickSize'])
 
     def get_quantity_precision(self, symbol: str) -> float:
-        """Gets the quantity precision for a given symbol"""
+        """Get the quantity precision for a given symbol."""
         info = self.client.futures_exchange_info()
 
         for symbol_info in info['symbols']:
@@ -40,56 +40,38 @@ class BinanceFuturesAdapter:
                 return symbol_info['quantityPrecision']
 
     def get_margin_balance(self) -> float:
-        """Returns the margin balance in the account"""
+        """Get the margin balance in the account."""
         return float(self.client.futures_account()['totalMarginBalance'])
 
     def get_position_information(self, symbol: str) -> dict:
-        """Returns position information on a given symbol"""
+        """Get position information on a given symbol"""
         return self.client.futures_position_information(symbol=symbol)[0]
 
     def get_bid_price(self, symbol: str) -> float:
-        """Gets the current bid price for a given symbol
-
-        Note: this isn't used right now but could be useful in the future
-        """
+        """Get the current bid price for a given symbol."""
         return float(self.client.futures_orderbook_ticker(symbol=symbol)['bidPrice'])
 
     def get_ask_price(self, symbol: str) -> float:
-        """Gets the current ask price for a given symbol"""
+        """Get the current ask price for a given symbol."""
         return float(self.client.futures_orderbook_ticker(symbol=symbol)['askPrice'])
 
     def get_order(self, symbol: str, order_id: int) -> dict:
-        """Returns order information on a given symbol and order id
+        """Get order information for a given symbol and order id.
 
-        Note: Binance doesn't allow us to just send the order_id - symbol is required as well
+        Note: Binance doesn't allow us to just send the order_id - symbol is required as well.
         """
         return self.client.futures_get_order(symbol=symbol, orderId=order_id)
 
-    def _create_limit_order(self, symbol: str, side: str, quantity: float, limit_price: float) -> dict:
-        """Generates a new limit order on Binance
+    def _send_limit_order(self, symbol: str, side: str, quantity: float, limit_price: float) -> dict:
+        """
+        Send a new limit order to Binance.
 
-        Parameters
-        ----------
-        symbol : str
-            The symbol to open the order on.
-        side : str
-            The position side (SIDE_BUY or SIDE_SELL)
-        quantity : float
-            The order amount/size
-        limit_price : float
-            The limit price to use for the order.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the order data.
-
-        Raises
-        ------
-        BinanceAPIException
-            If the API returns an error
-        BinanceOrderException
-            If there was an error with the order
+        :param symbol: The symbol to open the order for.
+        :param side: The position side (SIDE_BUY or SIDE_SELL).
+        :param quantity: The order amount/size.
+        :param limit_price: The limit price to use for the order.
+        :return: The order data.
+        :raise Exception: If the API returns an error or if the order doesn't go through.
         """
         try:
             return self.client.futures_create_order(
@@ -105,31 +87,16 @@ class BinanceFuturesAdapter:
         except BinanceOrderException as e:
             raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
-    def _create_stop_order(self, symbol: str, side: str, quantity: float, stop_price: float) -> dict:
-        """Generates a new stop market order on Binance
+    def _send_stop_order(self, symbol: str, side: str, quantity: float, stop_price: float) -> dict:
+        """
+        Send a new stop market order to Binance.
 
-        Parameters
-        ----------
-        symbol : str
-            The symbol to open the order on.
-        side : str
-            The position side (SIDE_BUY or SIDE_SELL)
-        quantity : float
-            The order amount/size
-        stop_price : float
-            The stop price to use for the order.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the order data.
-
-        Raises
-        ------
-        BinanceAPIException
-            If the API returns an error
-        BinanceOrderException
-            If there was an error with the order
+        :param symbol: The symbol to open the order for.
+        :param side: The position side (SIDE_BUY or SIDE_SELL).
+        :param quantity: The order amount/size.
+        :param stop_price: The stop price to use for the order.
+        :return: The order data.
+        :raise Exception: If the API returns an error or if the order doesn't go through.
         """
         try:
             return self.client.futures_create_order(
@@ -144,33 +111,17 @@ class BinanceFuturesAdapter:
         except BinanceOrderException as e:
             raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
-    def _create_trailing_stop_order(self, symbol: str, side: str, quantity: float, activation_price: float, callback_rate: float) -> dict:
-        """Generates a new trailing stop market order on Binance
+    def _send_trailing_stop_order(self, symbol: str, side: str, quantity: float, activation_price: float, callback_rate: float) -> dict:
+        """
+        Send a new trailing stop market order to Binance.
 
-        Parameters
-        ----------
-        symbol : str
-            The symbol to open the order on.
-        side : str
-            The position side (SIDE_BUY or SIDE_SELL)
-        quantity : float
-            The order amount/size
-        activation_price : float
-            The activation price to use for the order.
-        callback_rate : float
-            The callback rate to use for the order.
-
-        Returns
-        -------
-        dict
-            A dictionary containing the order data.
-
-        Raises
-        ------
-        BinanceAPIException
-            If the API returns an error
-        BinanceOrderException
-            If there was an error with the order
+        :param symbol: The symbol to open the order for.
+        :param side: The position side (SIDE_BUY or SIDE_SELL).
+        :param quantity: The order amount/size.
+        :param activation_price: The activation price to use for the order.
+        :param callback_rate: The callback rate to use for the order.
+        :return: The order data.
+        :raise Exception: If the API returns an error or if the order doesn't go through.
         """
         try:
             return self.client.futures_create_order(
@@ -187,13 +138,13 @@ class BinanceFuturesAdapter:
             raise Exception(f"Binance order error: {e.message} [{e.code}]")
 
     def buy_limit(self, symbol: str, quantity: float, limit_price: float):
-        """Creates a new buy limit order"""
-        return self._create_limit_order(symbol, SIDE_BUY, quantity, limit_price)
+        """Create a new buy limit order."""
+        return self._send_limit_order(symbol, SIDE_BUY, quantity, limit_price)
 
     def set_stop_loss(self, symbol: str, quantity: float, stop_price: float) -> dict:
-        """Creates a new stop-loss order"""
-        return self._create_stop_order(symbol, SIDE_SELL, quantity, stop_price)
+        """Create a new stop-loss order."""
+        return self._send_stop_order(symbol, SIDE_SELL, quantity, stop_price)
 
     def set_trailing_stop(self, symbol: str, quantity: float, activation_price: float, callback_rate: float) -> dict:
-        """Creates a new trailing stop order"""
-        return self._create_trailing_stop_order(symbol, SIDE_SELL, quantity, activation_price, callback_rate)
+        """Create a new trailing stop order."""
+        return self._send_trailing_stop_order(symbol, SIDE_SELL, quantity, activation_price, callback_rate)

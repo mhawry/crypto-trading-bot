@@ -4,6 +4,8 @@ import requests
 class TwitterStreamAdapter:
     """Twitter Stream API adapter"""
 
+    USER_AGENT = "v2FilteredStreamPython"
+
     TWITTER_API_V2_STREAM_RULES_ENDPOINT = "https://api.twitter.com/2/tweets/search/stream/rules"
 
     TWITTER_API_V2_STREAM_ENDPOINT = "https://api.twitter.com/2/tweets/search/stream?expansions=attachments.media_keys&media.fields=type,url"
@@ -12,30 +14,23 @@ class TwitterStreamAdapter:
         self.bearer_token = bearer_token
 
     def get_headers(self, r: requests.models.PreparedRequest) -> requests.models.PreparedRequest:
-        """Method required by bearer token authentication.
+        """
+        Add Authorization and User-Agent headers to a request.
 
-        Returns
-        -------
-        requests.models.PreparedRequest
-            the HTTP request
+        :param r: A PreparedRequest object.
+        :return: The same PreparedRequest object with the Authorization and User-Agent headers added.
         """
         r.headers['Authorization'] = f"Bearer {self.bearer_token}"
-        r.headers['User-Agent'] = "v2FilteredStreamPython"
+        r.headers['User-Agent'] = self.USER_AGENT
 
         return r
 
     def get_rules(self) -> dict:
-        """Get existing rules for the Filtered stream Twitter API
+        """
+        Get the current rules for the filtered stream endpoint.
 
-        Returns
-        -------
-        dict
-            a dict containing the Twitter rules
-
-        Raises
-        ------
-        Exception
-            If the API won't return the rules (HTTP status code other than 200).
+        :return: The current rules for the filtered Stream endpoint.
+        :raise Exception: If Twitter returns a status code other than 200.
         """
         response = requests.get(url=self.TWITTER_API_V2_STREAM_RULES_ENDPOINT,
                                 auth=self.get_headers)
@@ -46,17 +41,11 @@ class TwitterStreamAdapter:
         return response.json()
 
     def delete_all_rules(self, rules: dict) -> None:
-        """Get existing rules for the Filtered stream Twitter API
+        """
+        Delete rules for the filtered stream endpoint.
 
-        Parameters
-        ----------
-        rules : dict
-            A dict containing the Twitter rules to delete.
-
-        Raises
-        ------
-        Exception
-            If the rules can't be deleted.
+        :param rules: The rules that need to be deleted.
+        :raise Exception: If the rules cannot be deleted.
         """
         if rules is None or 'data' not in rules:
             return None
@@ -71,17 +60,11 @@ class TwitterStreamAdapter:
             raise Exception(f"Cannot delete rules: {response.text} [{response.status_code}]")
 
     def add_rules(self, rules: list) -> None:
-        """Add rules for the Filtered stream Twitter API
+        """
+        Add rules for the filtered stream endpoint.
 
-        Parameters
-        ----------
-        rules : list
-            A dict containing the Twitter rules to add.
-
-        Raises
-        ------
-        Exception
-            If the API won't add the rules (HTTP status code other than 201).
+        :param rules: The rules that need to be added.
+        :raise Exception: If the rules cannot be added.
         """
         payload = {'add': rules}
         response = requests.post(url=self.TWITTER_API_V2_STREAM_RULES_ENDPOINT,
